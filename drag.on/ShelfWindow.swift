@@ -5,7 +5,8 @@ import SwiftUI
 class ShelfWindow: NSPanel {
 
     private let store: ShelfStore
-    private var hostingView: NSHostingView<ShelfView>?
+    private var hostingView: FirstMouseHostingView<ShelfView>?
+    private var initialDragWindowOrigin: NSPoint?
 
     init(store: ShelfStore) {
         self.store = store
@@ -21,8 +22,6 @@ class ShelfWindow: NSPanel {
         setupContent()
     }
 
-    // MARK: - Panel Configuration
-
     private func configurePanel() {
         isFloatingPanel = true
         level = .floating
@@ -35,16 +34,12 @@ class ShelfWindow: NSPanel {
         animationBehavior = .utilityWindow
     }
 
-    // MARK: - Content Setup
-
     private func setupContent() {
-        // Root content: drop target
         let dropView = DropTargetView(store: store)
         dropView.frame = NSRect(x: 0, y: 0, width: 200, height: 200)
         dropView.autoresizingMask = [.width, .height]
         contentView = dropView
 
-        // Visual Effect background
         let visualEffect = NSVisualEffectView(frame: dropView.bounds)
         visualEffect.autoresizingMask = [.width, .height]
         visualEffect.material = .hudWindow
@@ -58,11 +53,15 @@ class ShelfWindow: NSPanel {
 
         dropView.addSubview(visualEffect)
 
-        // SwiftUI hosting view
-        let shelfView = ShelfView(store: store, onClose: { [weak self] in
-            self?.hide()
-        })
-        let hosting = NSHostingView(rootView: shelfView)
+        let shelfView = ShelfView(
+            store: store,
+            onClose: { [weak self] in self?.hide() },
+            onWindowDrag: { [weak self] event in
+                self?.handleWindowDrag(event)
+            }
+        )
+
+        let hosting = FirstMouseHostingView(rootView: shelfView)
         hosting.frame = dropView.bounds
         hosting.autoresizingMask = [.width, .height]
         hosting.wantsLayer = true
@@ -70,21 +69,20 @@ class ShelfWindow: NSPanel {
 
         visualEffect.addSubview(hosting)
         self.hostingView = hosting
-
-        // Drag handle — small pill area at top center only, doesn't block the close button
-        let pillWidth: CGFloat = 60
-        let handleView = WindowDragHandleView(frame: .zero)
-        handleView.frame = NSRect(
-            x: (200 - pillWidth) / 2,
-            y: 200 - 24,  // Top 24pt, centered (AppKit y=0 is bottom)
-            width: pillWidth,
-            height: 30
-        )
-        handleView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
-        dropView.addSubview(handleView)
     }
 
-    // MARK: - Show / Hide
+    private func handleWindowDrag(_ event: WindowDragEvent) {
+        switch event {
+        case .began:
+            initialDragWindowOrigin = frame.origin
+            makeKey()
+        case .changed(let translation):
+            guard let initialOrigin = initialDragWindowOrigin else { return }
+            setFrameOrigin(NSPoint(x: initialOrigin.x + translation.width, y: initialOrigin.y - translation.height))
+        case .ended:
+            initialDragWindowOrigin = nil
+        }
+    }
 
     func show(near point: NSPoint) {
         let screen = screenContaining(point: point) ?? NSScreen.main ?? NSScreen.screens[0]
@@ -127,13 +125,9 @@ class ShelfWindow: NSPanel {
         }
     }
 
-    // MARK: - Multi-Monitor
-
     private func screenContaining(point: NSPoint) -> NSScreen? {
-        for screen in NSScreen.screens {
-            if screen.frame.contains(point) {
-                return screen
-            }
+        for screen in NSScreen.screens where screen.frame.contains(point) {
+            return screen
         }
         return nil
     }
@@ -141,48 +135,11 @@ class ShelfWindow: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
-// MARK: - Window Drag Handle View
-
-/// Small transparent view positioned at the top center (over the pill indicator).
-/// Only this area lets the user drag the window around.
-class WindowDragHandleView: NSView {
-
-    private var initialMouseLocation: NSPoint?
-    private var initialWindowOrigin: NSPoint?
-
-    // Accept mouse events even when the window is not focused
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        return true
+        true
     }
-
-    override func mouseDown(with event: NSEvent) {
-        // Make the window key so it can receive events properly
-        window?.makeKey()
-        initialMouseLocation = NSEvent.mouseLocation
-        initialWindowOrigin = window?.frame.origin
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let initialMouse = initialMouseLocation,
-              let initialOrigin = initialWindowOrigin else { return }
-
-        let current = NSEvent.mouseLocation
-        let dx = current.x - initialMouse.x
-        let dy = current.y - initialMouse.y
-
-        window?.setFrameOrigin(NSPoint(x: initialOrigin.x + dx, y: initialOrigin.y + dy))
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        initialMouseLocation = nil
-        initialWindowOrigin = nil
-    }
-
-    override var isOpaque: Bool { false }
-    override func draw(_ dirtyRect: NSRect) { /* invisible */ }
 }
-
-// MARK: - Drop Target View
 
 class DropTargetView: NSView {
 
@@ -209,7 +166,7 @@ class DropTargetView: NSView {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        return .copy
+        .copy
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
