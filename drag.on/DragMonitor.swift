@@ -44,22 +44,15 @@ class DragMonitor {
 
         let mouseLocation = NSEvent.mouseLocation
 
-        if isButtonDown && isFileDragSessionActive() {
-            // Only track shake when an active drag session contains file URLs
+        if isButtonDown {
+            // Button is held — feed position to shake detector
             shakeDetector.recordMousePosition(mouseLocation)
         } else if wasButtonDown {
+            // Button was just released — reset detector
             shakeDetector.reset()
         }
 
         wasButtonDown = isButtonDown
-    }
-
-    private func isFileDragSessionActive() -> Bool {
-        let dragPasteboard = NSPasteboard(name: .drag)
-        return dragPasteboard.canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        )
     }
 
     deinit {

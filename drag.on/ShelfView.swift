@@ -1,25 +1,14 @@
 import SwiftUI
 
-enum WindowDragEvent {
-    case began
-    case changed(CGSize)
-    case ended
-}
-
 struct ShelfView: View {
     @ObservedObject var store: ShelfStore
     var onClose: () -> Void
-    var onWindowDrag: (WindowDragEvent) -> Void = { _ in }
-
-    @State private var isDraggingWindowBackground = false
 
     var body: some View {
         ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(backgroundDragGesture)
-
+            // Main content
             VStack(spacing: 0) {
+                // Top drag handle pill
                 HStack {
                     Spacer()
                     RoundedRectangle(cornerRadius: 10)
@@ -31,22 +20,26 @@ struct ShelfView: View {
                 .allowsHitTesting(false)
 
                 if store.items.isEmpty {
+                    // Empty state
                     Spacer()
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white.opacity(0.3))
                     Spacer()
                 } else {
-                    ArtifactGridView(items: store.items)
-                        .padding(.top, 14)
-                        .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Stacked thumbnails — pile of cards
+                    Spacer()
+                    FilePileView(items: store.items)
+                        .frame(maxWidth: .infinity)
+                    Spacer()
 
+                    // Bottom label — file count
                     FileCountLabel(items: store.items)
                         .padding(.bottom, 10)
                 }
             }
 
+            // Close button — top left
             VStack {
                 HStack {
                     Button(action: onClose) {
@@ -60,15 +53,18 @@ struct ShelfView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                    )
+                     .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                                )
 
                     Spacer()
 
+                    // Chevron button — top right (expand/browse)
                     if !store.items.isEmpty {
-                        Button(action: {}) {
+                        Button(action: {
+                            // Could open a detailed list view later
+                        }) {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.15))
@@ -79,10 +75,10 @@ struct ShelfView: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                        )
+                         .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                                )
                     }
                 }
                 Spacer()
@@ -91,43 +87,42 @@ struct ShelfView: View {
             .padding(.top, 8)
         }
     }
-
-    private var backgroundDragGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
-            .onChanged { value in
-                if !isDraggingWindowBackground {
-                    isDraggingWindowBackground = true
-                    onWindowDrag(.began)
-                }
-                onWindowDrag(.changed(value.translation))
-            }
-            .onEnded { _ in
-                guard isDraggingWindowBackground else { return }
-                isDraggingWindowBackground = false
-                onWindowDrag(.ended)
-            }
-    }
 }
 
-struct ArtifactGridView: View {
+// MARK: - Stacked thumbnail pile
+
+struct FilePileView: View {
     let items: [FileItem]
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 74, maximum: 90), spacing: 10)
-    ]
-
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(items) { item in
-                    FileThumbnailCard(item: item)
-                }
+        let displayItems = Array(items.suffix(5)) // Show last 5 max
+        let count = displayItems.count
+
+        ZStack {
+            ForEach(Array(displayItems.enumerated()), id: \.element.id) { index, item in
+                let offset = count - 1 - index // Reverse so newest is on top
+                let rotation = cardRotation(for: offset, total: count)
+                let yOffset = CGFloat(offset) * 2
+
+                FileThumbnailCard(item: item)
+                    .rotationEffect(.degrees(rotation), anchor: .center)
+                    .offset(y: yOffset)
+                    .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+                    .zIndex(Double(index))
             }
-            .padding(.vertical, 4)
         }
-        .scrollIndicators(.never)
+        .padding(.horizontal, 30)
+    }
+
+    private func cardRotation(for index: Int, total: Int) -> Double {
+        if total <= 1 { return 0 }
+        // Alternate left/right rotation for a natural pile feel
+        let rotations: [Double] = [0, -6, 5, -3, 7]
+        return rotations[index % rotations.count]
     }
 }
+
+// MARK: - Single thumbnail card
 
 struct FileThumbnailCard: View {
     let item: FileItem
@@ -137,7 +132,8 @@ struct FileThumbnailCard: View {
             Image(nsImage: item.thumbnail())
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 58, height: 58)
+                //make the max height to be 90
+                .frame(width: 90)
         }
         .padding(6)
         .background(
@@ -150,12 +146,14 @@ struct FileThumbnailCard: View {
         )
         .onDrag {
             if let url = item.resolveURL() {
-                return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+                return NSItemProvider(object: url as NSURL)
             }
             return NSItemProvider()
         }
     }
 }
+
+// MARK: - Bottom file count label
 
 struct FileCountLabel: View {
     let items: [FileItem]
@@ -188,6 +186,7 @@ struct FileCountLabel: View {
         if count == 1 {
             return "1 File"
         } else {
+            // Check if all are images
             let imageExts = Set(["png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "bmp", "svg"])
             let allImages = items.allSatisfy { item in
                 let ext = (item.fileName as NSString).pathExtension.lowercased()
