@@ -12,6 +12,7 @@ class ShakeDetector {
     private let timeWindow: TimeInterval = 0.5  // max time for reversals
     private let minVelocity: CGFloat = 300.0    // min px/s to count
     private let cooldownInterval: TimeInterval = 1.5
+    private let maxAmplitude: CGFloat = 150.0   // max X-range to qualify as a "shake" (not a window drag)
 
     // MARK: - State
     private struct Sample {
@@ -50,11 +51,16 @@ class ShakeDetector {
     // MARK: - Detection
 
     private func checkForShake(at point: NSPoint, time: TimeInterval) {
-        // Need at least 4 samples to detect 3 reversals
         guard samples.count >= 4 else { return }
 
         // Cooldown check
         if time - lastShakeTime < cooldownInterval { return }
+
+        // Amplitude check — reject if the mouse traveled too far horizontally
+        // (large movements = window drag, small tight reversals = shake gesture)
+        let xValues = samples.map { $0.position.x }
+        let xRange = (xValues.max() ?? 0) - (xValues.min() ?? 0)
+        if xRange > maxAmplitude { return }
 
         var reversals = 0
         var lastDirection: CGFloat = 0
@@ -63,12 +69,10 @@ class ShakeDetector {
             let dx = samples[i].position.x - samples[i - 1].position.x
             let dt = samples[i].timestamp - samples[i - 1].timestamp
 
-            // Skip if timestamps are identical or too close
             guard dt > 0.001 else { continue }
 
             let velocity = abs(dx / CGFloat(dt))
 
-            // Only count high-velocity movements
             guard velocity >= minVelocity else { continue }
 
             let direction: CGFloat = dx > 0 ? 1.0 : -1.0

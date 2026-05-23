@@ -17,6 +17,7 @@ struct drag_onApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let store = ShelfStore()
+    private let converter = ImageConverter()
     private var lairWindow: ShelfWindow?
     private let dragMonitor = DragMonitor()
 
@@ -25,7 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         // Create lair window
-        lairWindow = ShelfWindow(store: store)
+        lairWindow = ShelfWindow(store: store, converter: converter)
 
         // Wire up shake detection
         dragMonitor.shakeDetector.onShakeDetected = { [weak self] location in
@@ -51,9 +52,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "flame", accessibilityDescription: "Drag.on")
-            button.image?.size = NSSize(width: 18, height: 18)
-            button.image?.isTemplate = true
+            if let icon = NSImage(named: "MenuBarIcon") {
+                icon.size = NSSize(width: 18, height: 18)
+                icon.isTemplate = true
+                button.image = icon
+            } else {
+                // Fallback to system symbol if asset not found
+                button.image = NSImage(systemSymbolName: "flame", accessibilityDescription: "Drag.on")
+                button.image?.size = NSSize(width: 18, height: 18)
+            }
         }
 
         let menu = NSMenu()

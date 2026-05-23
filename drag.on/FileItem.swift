@@ -1,5 +1,6 @@
 import Cocoa
 import QuickLookThumbnailing
+import UniformTypeIdentifiers
 
 struct FileItem: Codable, Identifiable, Equatable {
     let id: UUID
@@ -58,7 +59,7 @@ struct FileItem: Codable, Identifiable, Equatable {
         if let url = resolveURL() {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
-        return NSWorkspace.shared.icon(forFileType: "public.data")
+        return NSWorkspace.shared.icon(for: .data)
     }
 
     /// Get a thumbnail preview of the file (uses QuickLook)

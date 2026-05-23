@@ -1,154 +1,167 @@
 import SwiftUI
 
+// MARK: - ShelfView (Main Lair Overlay)
+
 struct ShelfView: View {
     @ObservedObject var store: ShelfStore
     var onClose: () -> Void
+    var onConvert: () -> Void
+
+    @State private var isHoveringConvert = false
 
     var body: some View {
         ZStack {
-            // Main content
-            VStack(spacing: 0) {
-                // Top drag handle pill
-                HStack {
-                    Spacer()
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.25))
-                        .frame(width: 36, height: 4)
-                    Spacer()
-                }
-                .padding(.top, 4)
-                .allowsHitTesting(false)
+            // Layer 1: Dashed inner container border (only visible when empty)
+            if store.items.isEmpty {
+                dashedContainerBorder
+            }
 
-                if store.items.isEmpty {
-                    // Empty state
-                    Spacer()
+            // Layer 2: Main content
+            mainShelfContent
+
+            // Layer 3: Top bar (close + chevron)
+            topBar
+        }
+    }
+
+    // MARK: - Dashed Container Border
+
+    private var dashedContainerBorder: some View {
+        RoundedRectangle(cornerRadius: 14)
+            .strokeBorder(
+                Color.white.opacity(0.18),
+                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+            .padding(.top, 48) // Shift down to make space for top bar buttons above the guide
+            .allowsHitTesting(false)
+    }
+
+    // MARK: - Main Shelf Content
+
+    private var mainShelfContent: some View {
+        VStack(spacing: 0) {
+            // Top drag handle pill
+            HStack {
+                Spacer()
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: 36, height: 4)
+                Spacer()
+            }
+            .padding(.top, 4)
+            .allowsHitTesting(false)
+
+            if store.items.isEmpty {
+                // Empty state centered exactly inside the dashed container guides
+                VStack(spacing: 8) {
+                    Image(systemName: "tray.and.arrow.down")
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(.white.opacity(0.2))
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white.opacity(0.3))
-                    Spacer()
-                } else {
-                    // Stacked thumbnails — pile of cards
-                    Spacer()
-                    FilePileView(items: store.items)
-                        .frame(maxWidth: .infinity)
-                    Spacer()
-
-                    // Bottom label — file count
-                    FileCountLabel(items: store.items)
-                        .padding(.bottom, 10)
                 }
-            }
-
-            // Close button — top left
-            VStack {
-                HStack {
-                    Button(action: onClose) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(width: 30, height: 30)
-                            Image(systemName: "xmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                     .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                                )
-
-                    Spacer()
-
-                    // Chevron button — top right (expand/browse)
-                    if !store.items.isEmpty {
-                        Button(action: {
-                            // Could open a detailed list view later
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(width: 30, height: 30)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.7))
-                            }
-                        }
-                        .buttonStyle(.plain)
-                         .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
-                                )
-                    }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+                .padding(.top, 48)
+            } else {
+                // Space for the AppKit pile view (rendered underneath)
                 Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
-        }
-    }
-}
 
-// MARK: - Stacked thumbnail pile
-
-struct FilePileView: View {
-    let items: [FileItem]
-
-    var body: some View {
-        let displayItems = Array(items.suffix(5)) // Show last 5 max
-        let count = displayItems.count
-
-        ZStack {
-            ForEach(Array(displayItems.enumerated()), id: \.element.id) { index, item in
-                let offset = count - 1 - index // Reverse so newest is on top
-                let rotation = cardRotation(for: offset, total: count)
-                let yOffset = CGFloat(offset) * 2
-
-                FileThumbnailCard(item: item)
-                    .rotationEffect(.degrees(rotation), anchor: .center)
-                    .offset(y: yOffset)
-                    .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
-                    .zIndex(Double(index))
+                // Bottom bar
+                bottomBar
+                    .padding(.bottom, 16)
             }
         }
-        .padding(.horizontal, 30)
     }
 
-    private func cardRotation(for index: Int, total: Int) -> Double {
-        if total <= 1 { return 0 }
-        // Alternate left/right rotation for a natural pile feel
-        let rotations: [Double] = [0, -6, 5, -3, 7]
-        return rotations[index % rotations.count]
-    }
-}
+    // MARK: - Bottom Bar
 
-// MARK: - Single thumbnail card
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            // File count button — always takes full width at bottom
+            FileCountLabel(items: store.items)
 
-struct FileThumbnailCard: View {
-    let item: FileItem
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Image(nsImage: item.thumbnail())
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                //make the max height to be 90
-                .frame(width: 90)
-        }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.white.opacity(0.8))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-        )
-        .onDrag {
-            if let url = item.resolveURL() {
-                return NSItemProvider(object: url as NSURL)
+            if allItemsAreImages {
+                // Convert button — styled like a cloudy sky (glassy base + glowing center) - stacked below
+                Button(action: onConvert) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wand.and.sparkles")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Convert")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 32)
+                    .background(
+                        ZStack {
+                            // Glass base
+                            Capsule()
+                                .fill(Color.white.opacity(0.12))
+                            
+                            // Glowing cloudy center
+                            RadialGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.1, green: 0.55, blue: 1.0, opacity: 0.95),
+                                    Color(red: 0.3, green: 0.7, blue: 1.0, opacity: 0.15)
+                                ]),
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 80
+                            )
+                        }
+                    )
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1.0)
+                    )
+                    .shadow(color: Color(red: 0.0, green: 0.4, blue: 1.0).opacity(0.2), radius: 4, x: 0, y: 2)
+                    .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isHoveringConvert = hovering
+                    }
+                }
             }
-            return NSItemProvider()
+        }
+        .padding(.horizontal, 12) // Perfectly symmetric 12pt padding matching guideline and top bar
+    }
+
+    // MARK: - Top Bar
+
+    private var topBar: some View {
+        VStack {
+            HStack {
+                // Reusable circular Close button
+                LairCircleButton(systemName: "xmark", action: onClose)
+
+                Spacer()
+
+                if !store.items.isEmpty {
+                    // Reusable circular Chevron button (matching styling and hover logic)
+                    LairCircleButton(systemName: "chevron.down", action: {})
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12) // Symmetric 12pt padding
+        .padding(.top, 12)
+    }
+
+    // MARK: - Helpers
+
+    private var allItemsAreImages: Bool {
+        let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "tiff", "tif", "bmp", "svg", "ico"]
+        return !store.items.isEmpty && store.items.allSatisfy { item in
+            let ext = (item.fileName as NSString).pathExtension.lowercased()
+            return imageExts.contains(ext)
         }
     }
 }
@@ -163,21 +176,21 @@ struct FileCountLabel: View {
 
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.7))
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white.opacity(0.95))
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.white.opacity(0.5))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white.opacity(0.7))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .frame(height: 32)
+        .frame(maxWidth: .infinity)
         .background(
             Capsule()
-                .fill(Color.white.opacity(0.12))
+                .fill(Color.white.opacity(0.15))
         )
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1.0)
         )
     }
 
@@ -186,7 +199,6 @@ struct FileCountLabel: View {
         if count == 1 {
             return "1 File"
         } else {
-            // Check if all are images
             let imageExts = Set(["png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "bmp", "svg"])
             let allImages = items.allSatisfy { item in
                 let ext = (item.fileName as NSString).pathExtension.lowercased()
