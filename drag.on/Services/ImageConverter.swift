@@ -1,10 +1,11 @@
 import Foundation
 import Cocoa
-import Combine
+import os
 
 // MARK: - Conversion Types
 
-enum ImageFormat: String, CaseIterable, Identifiable {
+/// Supported image conversion formats.
+enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
     case webp = "WebP"
     case icns = "ICNS"
 
@@ -18,7 +19,8 @@ enum ImageFormat: String, CaseIterable, Identifiable {
     }
 }
 
-enum ConversionState: Equatable {
+/// Describes the current state of a conversion operation.
+enum ConversionState: Equatable, Sendable {
     case idle
     case converting(current: String, index: Int, total: Int)
     case success(outputURLs: [URL])
@@ -26,28 +28,46 @@ enum ConversionState: Equatable {
 }
 
 /// Describes the resolved output location and a human-readable label for the UI.
-struct ResolvedOutputInfo: Equatable {
+struct ResolvedOutputInfo: Equatable, Sendable {
     let url: URL
-    let label: String       // e.g. "Same Folder", "Downloads (Web Drop)", "Desktop"
+    let label: String
     let isWebDrop: Bool
+}
+
+// MARK: - Conversion Errors
+
+enum ConversionError: LocalizedError {
+    case outputNotCreated(detail: String)
+    case dimensionReadFailed
+    case processFailure(tool: String, code: Int32, stderr: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .outputNotCreated(let detail):
+            return "Output file was not created. \(detail)"
+        case .dimensionReadFailed:
+            return "Could not read image dimensions."
+        case .processFailure(let tool, let code, let stderr):
+            return "\(tool) exited with code \(code): \(stderr)"
+        }
+    }
 }
 
 // MARK: - ImageConverter
 
 /// Handles image format conversion using native macOS CLI tools (sips, iconutil).
-/// All work runs on background threads. UI state is published for SwiftUI binding.
-/// Concurrency is bounded to 3 parallel conversions via a semaphore.
-class ImageConverter: ObservableObject {
+@MainActor
+@Observable
+final class ImageConverter {
 
-    @Published var state: ConversionState = .idle
-    @Published var resolvedOutput: ResolvedOutputInfo?
+    var state: ConversionState = .idle
+    var resolvedOutput: ResolvedOutputInfo?
 
     private let sipsPath = "/usr/bin/sips"
     private let iconutilPath = "/usr/bin/iconutil"
-    private let maxConcurrent = 3
 
     /// Path fragments that indicate a temporary/cache source (browser downloads, etc.)
-    private static let tempPathMarkers: [String] = [
+    private nonisolated static let tempPathMarkers: [String] = [
         "/var/folders/",
         "/tmp/",
         "/Tmp/",
@@ -62,10 +82,6 @@ class ImageConverter: ObservableObject {
     // MARK: - Public API
 
     /// Convert a batch of FileItems to the specified format.
-    /// - Parameters:
-    ///   - items: Array of FileItems to convert (must be images).
-    ///   - format: Target format (WebP or ICNS).
-    ///   - outputDir: Optional custom output directory. Nil = same folder as source.
     func convertFiles(items: [FileItem], format: ImageFormat, outputDir: URL?) {
         guard !items.isEmpty else { return }
 
@@ -75,65 +91,42 @@ class ImageConverter: ObservableObject {
         }
 
         guard !resolvedItems.isEmpty else {
-            DispatchQueue.main.async {
-                self.state = .failed(message: "Could not resolve any file paths.")
-            }
+            state = .failed(message: "Could not resolve any file paths.")
             return
         }
 
-        DispatchQueue.main.async {
-            self.state = .converting(current: resolvedItems[0].0.fileName, index: 0, total: resolvedItems.count)
-        }
+        state = .converting(current: resolvedItems[0].0.fileName, index: 0, total: resolvedItems.count)
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        Task.detached(priority: .userInitiated) { [weak self] in
             guard let self = self else { return }
 
-            let semaphore = DispatchSemaphore(value: self.maxConcurrent)
-            let group = DispatchGroup()
-            let lock = NSLock()
             var outputURLs: [URL] = []
             var errors: [String] = []
 
             for (index, (item, sourceURL)) in resolvedItems.enumerated() {
-                semaphore.wait()
-                group.enter()
-
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.state = .converting(current: item.fileName, index: index, total: resolvedItems.count)
                 }
 
-                DispatchQueue.global(qos: .userInitiated).async {
-                    defer {
-                        semaphore.signal()
-                        group.leave()
+                let resolved = self.resolveOutputDirectory(for: sourceURL, customDir: outputDir)
+                let baseName = sourceURL.deletingPathExtension().lastPathComponent
+                let destURL = resolved.url.appendingPathComponent("\(baseName).\(format.fileExtension)")
+
+                do {
+                    switch format {
+                    case .webp:
+                        try self.convertToWebP(source: sourceURL, destination: destURL)
+                    case .icns:
+                        try self.convertToICNS(source: sourceURL, destination: destURL)
                     }
-
-                    let resolved = self.resolveOutputDirectory(for: sourceURL, customDir: outputDir)
-                    let baseName = sourceURL.deletingPathExtension().lastPathComponent
-                    let destURL = resolved.url.appendingPathComponent("\(baseName).\(format.fileExtension)")
-
-                    do {
-                        switch format {
-                        case .webp:
-                            try self.convertToWebP(source: sourceURL, destination: destURL)
-                        case .icns:
-                            try self.convertToICNS(source: sourceURL, destination: destURL)
-                        }
-
-                        lock.lock()
-                        outputURLs.append(destURL)
-                        lock.unlock()
-                    } catch {
-                        lock.lock()
-                        errors.append("\(item.fileName): \(error.localizedDescription)")
-                        lock.unlock()
-                    }
+                    outputURLs.append(destURL)
+                } catch {
+                    Logger.converter.error("Conversion failed for \(item.fileName): \(error.localizedDescription)")
+                    errors.append("\(item.fileName): \(error.localizedDescription)")
                 }
             }
 
-            group.wait()
-
-            DispatchQueue.main.async {
+            await MainActor.run {
                 if !outputURLs.isEmpty {
                     self.state = .success(outputURLs: outputURLs)
                 } else {
@@ -152,11 +145,7 @@ class ImageConverter: ObservableObject {
     // MARK: - Smart Output Resolution
 
     /// Resolve the best output directory for a source file.
-    /// If the user picked a custom directory, always use that.
-    /// If "Same Folder" is selected but the source lives in a temp/cache path
-    /// (e.g. browser drag), fall back to ~/Downloads.
-    func resolveOutputDirectory(for sourceURL: URL, customDir: URL?) -> ResolvedOutputInfo {
-        // User explicitly chose a folder — honour it
+    nonisolated func resolveOutputDirectory(for sourceURL: URL, customDir: URL?) -> ResolvedOutputInfo {
         if let custom = customDir {
             let name = custom.lastPathComponent
             return ResolvedOutputInfo(url: custom, label: name, isWebDrop: false)
@@ -166,20 +155,17 @@ class ImageConverter: ObservableObject {
         let isTempSource = Self.tempPathMarkers.contains { sourcePath.contains($0) }
 
         if isTempSource {
-            // Redirect to ~/Downloads as a safe, user-visible location
             let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
                 ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
             return ResolvedOutputInfo(url: downloads, label: "Downloads (Web Drop)", isWebDrop: true)
         }
 
-        // Normal local file — output next to the source
         let parentDir = sourceURL.deletingLastPathComponent()
         let folderName = parentDir.lastPathComponent
         return ResolvedOutputInfo(url: parentDir, label: folderName, isWebDrop: false)
     }
 
-    /// Preview the resolved output info for the first item in a set
-    /// so the UI can show the destination label before the user clicks Convert.
+    /// Preview the resolved output info for the first item in a set.
     func previewOutputDirectory(for items: [FileItem], customDir: URL?) {
         guard let first = items.first, let url = first.resolveURL() else {
             resolvedOutput = nil
@@ -190,9 +176,7 @@ class ImageConverter: ObservableObject {
 
     // MARK: - WebP Conversion
 
-    /// Convert a single image to WebP using sips.
-    private func convertToWebP(source: URL, destination: URL) throws {
-        // sips -s format webp <source> --out <destination>
+    nonisolated private func convertToWebP(source: URL, destination: URL) throws {
         let result = try runProcess(
             executablePath: sipsPath,
             arguments: ["-s", "format", "webp", source.path, "--out", destination.path]
@@ -205,8 +189,7 @@ class ImageConverter: ObservableObject {
 
     // MARK: - ICNS Conversion
 
-    /// Convert a single image to ICNS with center-crop and multi-scale iconset generation.
-    private func convertToICNS(source: URL, destination: URL) throws {
+    nonisolated private func convertToICNS(source: URL, destination: URL) throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("dragon_icns_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -215,14 +198,12 @@ class ImageConverter: ObservableObject {
             try? FileManager.default.removeItem(at: tempDir)
         }
 
-        // Step 1: Create a center-cropped square copy
         let squareSource = tempDir.appendingPathComponent("square_source.png")
         try FileManager.default.copyItem(at: source, to: squareSource)
 
         let (srcWidth, srcHeight) = try getImageDimensions(url: squareSource)
 
         if srcWidth != srcHeight {
-            // Center-crop to the smaller dimension
             let cropSize = min(srcWidth, srcHeight)
             _ = try runProcess(
                 executablePath: sipsPath,
@@ -233,7 +214,6 @@ class ImageConverter: ObservableObject {
             )
         }
 
-        // Step 2: Resize the squared image to 1024x1024
         _ = try runProcess(
             executablePath: sipsPath,
             arguments: [
@@ -243,7 +223,6 @@ class ImageConverter: ObservableObject {
             ]
         )
 
-        // Step 3: Generate iconset
         let iconsetDir = tempDir.appendingPathComponent(
             destination.deletingPathExtension().lastPathComponent + ".iconset"
         )
@@ -275,7 +254,6 @@ class ImageConverter: ObservableObject {
             )
         }
 
-        // Step 4: Run iconutil to compile the .icns
         _ = try runProcess(
             executablePath: iconutilPath,
             arguments: ["-c", "icns", iconsetDir.path, "-o", destination.path]
@@ -288,8 +266,7 @@ class ImageConverter: ObservableObject {
 
     // MARK: - Helpers
 
-    /// Get the pixel dimensions of an image using sips.
-    private func getImageDimensions(url: URL) throws -> (width: Int, height: Int) {
+    nonisolated private func getImageDimensions(url: URL) throws -> (width: Int, height: Int) {
         let widthOutput = try runProcess(
             executablePath: sipsPath,
             arguments: ["-g", "pixelWidth", url.path]
@@ -306,8 +283,7 @@ class ImageConverter: ObservableObject {
         return (width, height)
     }
 
-    /// Parse a pixel value from sips output like "  pixelWidth: 1024"
-    private func parsePixelValue(from output: String) -> Int? {
+    nonisolated private func parsePixelValue(from output: String) -> Int? {
         let lines = output.components(separatedBy: "\n")
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -321,9 +297,8 @@ class ImageConverter: ObservableObject {
         return nil
     }
 
-    /// Run a subprocess synchronously, returning stdout. Throws on non-zero exit.
     @discardableResult
-    private func runProcess(executablePath: String, arguments: [String]) throws -> String {
+    nonisolated private func runProcess(executablePath: String, arguments: [String]) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
@@ -333,10 +308,11 @@ class ImageConverter: ObservableObject {
         process.standardOutput = pipe
         process.standardError = errPipe
 
+        // Read data before waitUntilExit to avoid pipe buffer deadlock
         try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8) ?? ""
 
         if process.terminationStatus != 0 {
@@ -350,24 +326,5 @@ class ImageConverter: ObservableObject {
         }
 
         return output
-    }
-}
-
-// MARK: - Errors
-
-enum ConversionError: LocalizedError {
-    case outputNotCreated(detail: String)
-    case dimensionReadFailed
-    case processFailure(tool: String, code: Int32, stderr: String)
-
-    var errorDescription: String? {
-        switch self {
-        case .outputNotCreated(let detail):
-            return "Output file was not created. \(detail)"
-        case .dimensionReadFailed:
-            return "Could not read image dimensions."
-        case .processFailure(let tool, let code, let stderr):
-            return "\(tool) exited with code \(code): \(stderr)"
-        }
     }
 }

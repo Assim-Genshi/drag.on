@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - ShelfView (Main Lair Overlay)
+// MARK: - LairView (Main Lair Overlay)
 
-struct ShelfView: View {
-    @ObservedObject var store: ShelfStore
+struct LairView: View {
+    var store: LairStore
     var onClose: () -> Void
     var onConvert: () -> Void
 
@@ -11,15 +11,12 @@ struct ShelfView: View {
 
     var body: some View {
         ZStack {
-            // Layer 1: Dashed inner container border (only visible when empty)
             if store.items.isEmpty {
                 dashedContainerBorder
             }
 
-            // Layer 2: Main content
-            mainShelfContent
+            mainLairContent
 
-            // Layer 3: Top bar (close + chevron)
             topBar
         }
     }
@@ -30,19 +27,19 @@ struct ShelfView: View {
         RoundedRectangle(cornerRadius: 14)
             .strokeBorder(
                 Color.white.opacity(0.18),
-                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+                style: StrokeStyle(lineWidth: 1.5, dash: [9, 4])
             )
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
-            .padding(.top, 48) // Shift down to make space for top bar buttons above the guide
+            .padding(.top, 52)
             .allowsHitTesting(false)
     }
 
-    // MARK: - Main Shelf Content
+    // MARK: - Main Lair Content
 
-    private var mainShelfContent: some View {
+    private var mainLairContent: some View {
         VStack(spacing: 0) {
-            // Top drag handle pill
+            // Drag handle pill
             HStack {
                 Spacer()
                 RoundedRectangle(cornerRadius: 10)
@@ -54,24 +51,21 @@ struct ShelfView: View {
             .allowsHitTesting(false)
 
             if store.items.isEmpty {
-                // Empty state centered exactly inside the dashed container guides
                 VStack(spacing: 8) {
                     Image(systemName: "tray.and.arrow.down")
                         .font(.system(size: 28, weight: .light))
-                        .foregroundColor(.white.opacity(0.2))
+                        .foregroundStyle(.white.opacity(0.2))
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(0.3))
+                        .foregroundStyle(.white.opacity(0.3))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
                 .padding(.top, 48)
             } else {
-                // Space for the AppKit pile view (rendered underneath)
                 Spacer()
 
-                // Bottom bar
                 bottomBar
                     .padding(.bottom, 16)
             }
@@ -82,28 +76,22 @@ struct ShelfView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 8) {
-            // File count button — always takes full width at bottom
             FileCountLabel(items: store.items)
 
-            if allItemsAreImages {
-                // Convert button — styled like a cloudy sky (glassy base + glowing center) - stacked below
+            if store.allItemsAreImages {
                 Button(action: onConvert) {
                     HStack(spacing: 8) {
-                        Image(systemName: "wand.and.sparkles")
-                            .font(.system(size: 13, weight: .bold))
+                        WandIcon(size: 13, weight: .bold)
                         Text("Convert")
                             .font(.system(size: 13, weight: .bold))
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 32)
                     .background(
                         ZStack {
-                            // Glass base
                             Capsule()
                                 .fill(Color.white.opacity(0.12))
-                            
-                            // Glowing cloudy center
                             RadialGradient(
                                 gradient: Gradient(colors: [
                                     Color(red: 0.1, green: 0.55, blue: 1.0, opacity: 0.95),
@@ -131,7 +119,7 @@ struct ShelfView: View {
                 }
             }
         }
-        .padding(.horizontal, 12) // Perfectly symmetric 12pt padding matching guideline and top bar
+        .padding(.horizontal, 12)
     }
 
     // MARK: - Top Bar
@@ -139,48 +127,45 @@ struct ShelfView: View {
     private var topBar: some View {
         VStack {
             HStack {
-                // Reusable circular Close button
                 LairCircleButton(systemName: "xmark", action: onClose)
 
                 Spacer()
 
                 if !store.items.isEmpty {
-                    // Reusable circular Chevron button (matching styling and hover logic)
-                    LairCircleButton(systemName: "chevron.down", action: {})
+                    Menu {
+                        Button(role: .destructive, action: {
+                            store.clearAll()
+                        }) {
+                            Label("Clear Lair", systemImage: "trash")
+                        }
+                    } label: {
+                        LairCircleButton(systemName: "chevron.down", action: {})
+                    }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
                 }
             }
             Spacer()
         }
-        .padding(.horizontal, 12) // Symmetric 12pt padding
+        .padding(.horizontal, 12)
         .padding(.top, 12)
-    }
-
-    // MARK: - Helpers
-
-    private var allItemsAreImages: Bool {
-        let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "tiff", "tif", "bmp", "svg", "ico"]
-        return !store.items.isEmpty && store.items.allSatisfy { item in
-            let ext = (item.fileName as NSString).pathExtension.lowercased()
-            return imageExts.contains(ext)
-        }
     }
 }
 
-// MARK: - Bottom file count label
+// MARK: - File Count Label
 
 struct FileCountLabel: View {
     let items: [FileItem]
 
     var body: some View {
-        let label = countText()
-
         HStack(spacing: 4) {
-            Text(label)
+            Text(countText)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white.opacity(0.95))
+                .foregroundStyle(.white.opacity(0.95))
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(0.7))
         }
         .frame(height: 32)
         .frame(maxWidth: .infinity)
@@ -194,20 +179,12 @@ struct FileCountLabel: View {
         )
     }
 
-    private func countText() -> String {
+    private var countText: String {
         let count = items.count
         if count == 1 {
             return "1 File"
-        } else {
-            let imageExts = Set(["png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "bmp", "svg"])
-            let allImages = items.allSatisfy { item in
-                let ext = (item.fileName as NSString).pathExtension.lowercased()
-                return imageExts.contains(ext)
-            }
-            if allImages {
-                return "\(count) Images"
-            }
-            return "\(count) Files"
         }
+        let allImages = items.allSatisfy { SupportedImageExtensions.isImage(fileName: $0.fileName) }
+        return allImages ? "\(count) Images" : "\(count) Files"
     }
 }

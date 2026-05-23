@@ -392,7 +392,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = drag.on/drag_on.entitlements;
+				CODE_SIGN_ENTITLEMENTS = drag.on/App/drag_on.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -409,7 +409,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-on";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -418,7 +418,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = drag.on/drag_on.entitlements;
+				CODE_SIGN_ENTITLEMENTS = drag.on/App/drag_on.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -435,7 +435,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-on";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -451,7 +451,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/drag.on.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/drag.on";
 			};
 			name = Debug;
@@ -468,7 +468,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/drag.on.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/drag.on";
 			};
 			name = Release;
@@ -483,7 +483,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = drag.on;
 			};
 			name = Debug;
@@ -498,7 +498,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = drag.on;
 			};
 			name = Release;

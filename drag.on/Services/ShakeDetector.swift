@@ -1,20 +1,27 @@
 import Cocoa
 
 /// Detects mouse "shake" gestures — rapid horizontal direction reversals
-/// while the mouse button is held down (dragging).
-class ShakeDetector {
+/// while the mouse button is held down during a file drag.
+final class ShakeDetector {
 
     /// Called when a shake gesture is detected, with the screen location.
     var onShakeDetected: ((NSPoint) -> Void)?
 
     // MARK: - Configuration
-    private let requiredReversals = 3           // direction changes needed
-    private let timeWindow: TimeInterval = 0.5  // max time for reversals
-    private let minVelocity: CGFloat = 300.0    // min px/s to count
-    private let cooldownInterval: TimeInterval = 1.5
-    private let maxAmplitude: CGFloat = 150.0   // max X-range to qualify as a "shake" (not a window drag)
+
+    /// Number of direction changes needed to trigger a shake.
+    var requiredReversals: Int = 3
+    /// Maximum time window (seconds) for reversals to count.
+    var timeWindow: TimeInterval = 0.5
+    /// Minimum velocity (px/s) for a movement to count.
+    var minVelocity: CGFloat = 300.0
+    /// Cooldown between shake detections.
+    var cooldownInterval: TimeInterval = 1.5
+    /// Maximum horizontal range to qualify as a shake (rejects window drags).
+    var maxAmplitude: CGFloat = 150.0
 
     // MARK: - State
+
     private struct Sample {
         let position: NSPoint
         let timestamp: TimeInterval
@@ -26,19 +33,17 @@ class ShakeDetector {
 
     // MARK: - Public
 
-    /// Record a mouse position sample. Call this at a high frequency (~60Hz).
+    /// Record a mouse position sample. Call at a high frequency (~60Hz).
     func recordMousePosition(_ point: NSPoint) {
         let now = ProcessInfo.processInfo.systemUptime
 
         samples.append(Sample(position: point, timestamp: now))
 
-        // Keep buffer bounded
+        // Keep buffer bounded and prune old samples
         if samples.count > maxSamples {
             samples.removeFirst(samples.count - maxSamples)
         }
-
-        // Prune old samples outside the time window
-        samples = samples.filter { now - $0.timestamp <= timeWindow }
+        samples.removeAll { now - $0.timestamp > timeWindow }
 
         checkForShake(at: point, time: now)
     }
@@ -57,7 +62,6 @@ class ShakeDetector {
         if time - lastShakeTime < cooldownInterval { return }
 
         // Amplitude check — reject if the mouse traveled too far horizontally
-        // (large movements = window drag, small tight reversals = shake gesture)
         let xValues = samples.map { $0.position.x }
         let xRange = (xValues.max() ?? 0) - (xValues.min() ?? 0)
         if xRange > maxAmplitude { return }
@@ -72,7 +76,6 @@ class ShakeDetector {
             guard dt > 0.001 else { continue }
 
             let velocity = abs(dx / CGFloat(dt))
-
             guard velocity >= minVelocity else { continue }
 
             let direction: CGFloat = dx > 0 ? 1.0 : -1.0

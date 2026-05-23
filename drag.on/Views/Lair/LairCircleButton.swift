@@ -1,17 +1,14 @@
 import SwiftUI
 
-/// A reusable circular icon button designed for Drag.on controls.
-/// Supports dynamic system dark/light adaptation when placed on light backgrounds,
-/// and dark-translucent HUD constraints when placed on standard dark windows.
+/// A reusable circular icon button for Drag.on controls.
 struct LairCircleButton: View {
     let systemName: String
     let action: () -> Void
     var isLightBackground: Bool = false
 
-    @Environment(\.colorScheme) var colorScheme
     @State private var isHovering = false
 
-    // MARK: - Dynamic Styling Constants
+    // MARK: - Dynamic Styling
 
     private var baseOpacity: Double {
         isLightBackground ? 0.06 : 0.15
@@ -50,7 +47,7 @@ struct LairCircleButton: View {
 
                 Image(systemName: systemName)
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(iconColor)
+                    .foregroundStyle(iconColor)
             }
         }
         .buttonStyle(.plain)
@@ -64,5 +61,6 @@ struct LairCircleButton: View {
                 isHovering = hovering
             }
         }
+        .accessibilityLabel(Text(systemName))
     }
 }

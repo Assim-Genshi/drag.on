@@ -1,9 +1,9 @@
 import Cocoa
+import os
 
-/// Monitors mouse position at 60Hz using a timer. During left-button drags,
-/// feeds positions to ShakeDetector — but ONLY when an actual file drag is
-/// happening (not a window drag).
-class DragMonitor {
+/// Monitors mouse position at 60Hz during active file drags.
+/// Feeds positions to ShakeDetector to detect the "shake to summon" gesture.
+final class DragMonitor {
 
     let shakeDetector = ShakeDetector()
 
@@ -23,14 +23,14 @@ class DragMonitor {
         timer.resume()
         pollTimer = timer
 
-        print("DragMonitor: Started polling at 60Hz")
+        Logger.dragMonitor.info("Started polling at 60Hz")
     }
 
     func stopMonitoring() {
         pollTimer?.cancel()
         pollTimer = nil
         shakeDetector.reset()
-        print("DragMonitor: Stopped polling")
+        Logger.dragMonitor.info("Stopped polling")
     }
 
     // MARK: - Polling
@@ -44,8 +44,6 @@ class DragMonitor {
         let mouseLocation = NSEvent.mouseLocation
 
         if isButtonDown {
-            // Only feed to shake detector if a FILE drag is active
-            // (not a window drag, text selection, etc.)
             if isFileDragActive() {
                 shakeDetector.recordMousePosition(mouseLocation)
             }
@@ -59,8 +57,6 @@ class DragMonitor {
     // MARK: - File Drag Detection
 
     /// Check if the system drag pasteboard contains file URLs.
-    /// During Finder file drags, this pasteboard is populated.
-    /// During window drags, it's empty.
     private func isFileDragActive() -> Bool {
         let dragPasteboard = NSPasteboard(name: .drag)
         return dragPasteboard.canReadObject(

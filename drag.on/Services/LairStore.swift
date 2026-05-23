@@ -1,10 +1,21 @@
 import Foundation
-import Combine
+import os
 
-class ShelfStore: ObservableObject {
-    @Published var items: [FileItem] = []
+/// Observable store managing the list of files in the Lair.
+/// Handles persistence via UserDefaults and prunes stale bookmarks on launch.
+@MainActor
+@Observable
+final class LairStore: FileStoring {
 
-    private let storageKey = "dragOnShelfItems"
+    // MARK: - Published State
+
+    var items: [FileItem] = []
+
+    // MARK: - Private
+
+    private let storageKey = "dragOnLairItems"
+
+    // MARK: - Initialization
 
     init() {
         loadItems()
@@ -12,9 +23,8 @@ class ShelfStore: ObservableObject {
 
     // MARK: - Public API
 
-    /// Add a file to the shelf from a URL
+    /// Add a file to the lair from a URL.
     func addFile(url: URL) {
-        // Don't add duplicates (same path)
         guard !items.contains(where: { $0.filePath == url.path }) else { return }
 
         if let item = FileItem.from(url: url) {
@@ -23,23 +33,36 @@ class ShelfStore: ObservableObject {
         }
     }
 
-    /// Add multiple files at once
+    /// Add multiple files at once (batched save).
     func addFiles(urls: [URL]) {
+        var didAdd = false
         for url in urls {
-            addFile(url: url)
+            guard !items.contains(where: { $0.filePath == url.path }) else { continue }
+            if let item = FileItem.from(url: url) {
+                items.append(item)
+                didAdd = true
+            }
+        }
+        if didAdd {
+            saveItems()
         }
     }
 
-    /// Remove a file from the shelf by ID
+    /// Remove a file from the lair by ID.
     func removeFile(id: UUID) {
         items.removeAll { $0.id == id }
         saveItems()
     }
 
-    /// Clear all items from the shelf
+    /// Clear all items from the lair.
     func clearAll() {
         items.removeAll()
         saveItems()
+    }
+
+    /// Whether all items in the lair are images.
+    var allItemsAreImages: Bool {
+        !items.isEmpty && items.allSatisfy { $0.isImage }
     }
 
     // MARK: - Persistence
@@ -49,7 +72,7 @@ class ShelfStore: ObservableObject {
             let data = try JSONEncoder().encode(items)
             UserDefaults.standard.set(data, forKey: storageKey)
         } catch {
-            print("Failed to save shelf items: \(error)")
+            Logger.lairStore.error("Failed to save lair items: \(error.localizedDescription)")
         }
     }
 
@@ -58,20 +81,18 @@ class ShelfStore: ObservableObject {
 
         do {
             let decoded = try JSONDecoder().decode([FileItem].self, from: data)
-            // Validate bookmarks and prune stale ones
             items = decoded.filter { item in
                 let url = item.resolveURL()
                 if url == nil {
-                    print("Pruning stale item: \(item.fileName)")
+                    Logger.lairStore.info("Pruning stale item: \(item.fileName)")
                 }
                 return url != nil
             }
-            // Re-save if we pruned any
             if items.count != decoded.count {
                 saveItems()
             }
         } catch {
-            print("Failed to load shelf items: \(error)")
+            Logger.lairStore.error("Failed to load lair items: \(error.localizedDescription)")
         }
     }
 }

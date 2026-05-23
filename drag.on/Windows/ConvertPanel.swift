@@ -2,13 +2,12 @@ import Cocoa
 import SwiftUI
 
 /// A separate floating HUD panel for the image converter dialog.
-/// Appears near the Lair window with its own translucent background.
-class ConvertPanel: NSPanel {
+final class ConvertPanel: NSPanel {
 
-    private let store: ShelfStore
+    private let store: LairStore
     private let converter: ImageConverter
 
-    init(store: ShelfStore, converter: ImageConverter) {
+    init(store: LairStore, converter: ImageConverter) {
         self.store = store
         self.converter = converter
 
@@ -44,7 +43,6 @@ class ConvertPanel: NSPanel {
         container.autoresizingMask = [.width, .height]
         contentView = container
 
-        // Visual Effect background — same HUD material as the Lair
         let visualEffect = NSVisualEffectView(frame: container.bounds)
         visualEffect.autoresizingMask = [.width, .height]
         visualEffect.material = .hudWindow
@@ -57,7 +55,6 @@ class ConvertPanel: NSPanel {
         visualEffect.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
         container.addSubview(visualEffect)
 
-        // SwiftUI converter content
         let convertView = ConvertView(
             store: store,
             converter: converter,
@@ -75,15 +72,15 @@ class ConvertPanel: NSPanel {
 
     // MARK: - Show / Dismiss
 
-    /// Show the panel centered on the screen containing the reference window.
     func show(relativeTo lairFrame: NSRect) {
         let panelWidth: CGFloat = 320
         let panelHeight: CGFloat = 380
 
-        // Center on screen containing the Lair
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSPoint(x: lairFrame.midX, y: lairFrame.midY)) })
-            ?? NSScreen.main
-            ?? NSScreen.screens[0]
+        let screen = NSScreen.screens.first(where: {
+            $0.frame.contains(NSPoint(x: lairFrame.midX, y: lairFrame.midY))
+        }) ?? NSScreen.main ?? NSScreen.screens.first
+
+        guard let screen = screen else { return }
         let screenFrame = screen.visibleFrame
 
         let x = screenFrame.midX - panelWidth / 2
@@ -93,10 +90,8 @@ class ConvertPanel: NSPanel {
 
         alphaValue = 0
         orderFrontRegardless()
-        
-        // Take focus immediately
         makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.18
@@ -110,8 +105,8 @@ class ConvertPanel: NSPanel {
             context.duration = 0.12
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             self.animator().alphaValue = 0
-        }, completionHandler: {
-            self.orderOut(nil)
+        }, completionHandler: { [weak self] in
+            self?.orderOut(nil)
         })
     }
 
@@ -120,7 +115,7 @@ class ConvertPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown, .rightMouseDown:
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             makeKeyAndOrderFront(nil)
         default:
             break

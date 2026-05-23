@@ -1,17 +1,20 @@
 import Cocoa
 import QuickLookThumbnailing
 import UniformTypeIdentifiers
+import os
 
-struct FileItem: Codable, Identifiable, Equatable {
+/// Represents a file stored in the Lair with persistent bookmark access.
+struct FileItem: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let fileName: String
     let filePath: String
     let bookmarkData: Data
 
-    /// Create a FileItem from a file URL by generating a security-scoped bookmark.
+    // MARK: - Factory
+
+    /// Create a FileItem from a file URL by generating a bookmark.
     static func from(url: URL) -> FileItem? {
         do {
-            // Create bookmark for persistent access (no sandbox, so no security scope needed)
             let bookmarkData = try url.bookmarkData(
                 options: [],
                 includingResourceValuesForKeys: nil,
@@ -24,10 +27,12 @@ struct FileItem: Codable, Identifiable, Equatable {
                 bookmarkData: bookmarkData
             )
         } catch {
-            print("Failed to create bookmark for \(url.path): \(error)")
+            Logger.fileItem.error("Failed to create bookmark for \(url.path): \(error.localizedDescription)")
             return nil
         }
     }
+
+    // MARK: - URL Resolution
 
     /// Resolve the bookmark back to a URL. Returns nil if stale or invalid.
     func resolveURL() -> URL? {
@@ -40,8 +45,7 @@ struct FileItem: Codable, Identifiable, Equatable {
                 bookmarkDataIsStale: &isStale
             )
             if isStale {
-                print("Bookmark is stale for \(fileName)")
-                // File still exists at the path, just bookmark is outdated
+                Logger.fileItem.warning("Bookmark is stale for \(fileName)")
                 if FileManager.default.fileExists(atPath: url.path) {
                     return url
                 }
@@ -49,12 +53,15 @@ struct FileItem: Codable, Identifiable, Equatable {
             }
             return url
         } catch {
-            print("Failed to resolve bookmark for \(fileName): \(error)")
+            Logger.fileItem.error("Failed to resolve bookmark for \(fileName): \(error.localizedDescription)")
             return nil
         }
     }
 
-    /// Get the file icon from the workspace
+    // MARK: - Icons & Thumbnails
+
+    /// Get the file icon from the workspace.
+    @MainActor
     func icon() -> NSImage {
         if let url = resolveURL() {
             return NSWorkspace.shared.icon(forFile: url.path)
@@ -62,9 +69,13 @@ struct FileItem: Codable, Identifiable, Equatable {
         return NSWorkspace.shared.icon(for: .data)
     }
 
-    /// Get a thumbnail preview of the file (uses QuickLook)
+    /// Get a thumbnail preview of the file (synchronous, uses QuickLook).
+    /// Falls back to the system icon if thumbnail generation is too slow.
+    @MainActor
     func thumbnail() -> NSImage {
-        guard let url = resolveURL() else { return icon() }
+        guard let url = resolveURL() else {
+            return NSWorkspace.shared.icon(for: .data)
+        }
 
         let size = CGSize(width: 180, height: 180)
         let request = QLThumbnailGenerator.Request(
@@ -84,13 +95,48 @@ struct FileItem: Codable, Identifiable, Equatable {
             semaphore.signal()
         }
 
-        // Wait briefly for thumbnail — fall back to icon if too slow
         let timeout = semaphore.wait(timeout: .now() + 0.5)
         if timeout == .timedOut || result == nil {
-            return icon()
+            return NSWorkspace.shared.icon(forFile: url.path)
         }
         return result!
     }
+
+    /// Async variant of thumbnail generation for modern Swift concurrency contexts.
+    @MainActor
+    func thumbnailAsync(size: CGSize = CGSize(width: 180, height: 180)) async -> NSImage {
+        guard let url = resolveURL() else {
+            return NSWorkspace.shared.icon(for: .data)
+        }
+
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: size,
+            scale: 2.0,
+            representationTypes: .thumbnail
+        )
+
+        return await withCheckedContinuation { continuation in
+            QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
+                DispatchQueue.main.async {
+                    if let rep = rep {
+                        continuation.resume(returning: rep.nsImage)
+                    } else {
+                        continuation.resume(returning: NSWorkspace.shared.icon(forFile: url.path))
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Image Detection
+
+    /// Whether this file is a recognized image format.
+    var isImage: Bool {
+        SupportedImageExtensions.isImage(fileName: fileName)
+    }
+
+    // MARK: - Equatable
 
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
         lhs.id == rhs.id

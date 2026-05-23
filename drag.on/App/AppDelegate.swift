@@ -1,44 +1,36 @@
-import SwiftUI
 import Cocoa
+import os
 
-@main
-struct drag_onApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+/// Main application delegate managing the Lair window, drag monitoring, and menu bar.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
-    }
-}
-
-// MARK: - App Delegate
-
-class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    private let store = ShelfStore()
+    private let store = LairStore()
     private let converter = ImageConverter()
-    private var lairWindow: ShelfWindow?
+    private var lairWindow: LairWindow?
     private let dragMonitor = DragMonitor()
 
+    // MARK: - Lifecycle
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide from dock
         NSApp.setActivationPolicy(.accessory)
 
-        // Create lair window
-        lairWindow = ShelfWindow(store: store, converter: converter)
+        lairWindow = LairWindow(store: store, converter: converter)
 
-        // Wire up shake detection
+        // Apply saved shake sensitivity
+        let sensitivity = UserDefaults.standard.double(forKey: "shakeSensitivity")
+        if sensitivity > 0 {
+            dragMonitor.shakeDetector.requiredReversals = Int(sensitivity)
+        }
+
         dragMonitor.shakeDetector.onShakeDetected = { [weak self] location in
             DispatchQueue.main.async {
                 self?.lairWindow?.show(near: location)
             }
         }
-
-        // Start monitoring drags globally
         dragMonitor.startMonitoring()
 
-        // Setup menu bar
         setupStatusItem()
     }
 
@@ -57,7 +49,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 icon.isTemplate = true
                 button.image = icon
             } else {
-                // Fallback to system symbol if asset not found
                 button.image = NSImage(systemSymbolName: "flame", accessibilityDescription: "Drag.on")
                 button.image?.size = NSSize(width: 18, height: 18)
             }
@@ -65,13 +56,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        // Title
         let titleItem = NSMenuItem(title: "Drag.on", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())
 
-        // Show / Hide Lair
         let showItem = NSMenuItem(
             title: "Show Lair",
             action: #selector(toggleLair),
@@ -81,7 +70,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showItem.target = self
         menu.addItem(showItem)
 
-        // Clear Lair
         let clearItem = NSMenuItem(
             title: "Clear Lair",
             action: #selector(clearLair),
@@ -92,7 +80,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quit
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let quitItem = NSMenuItem(
             title: "Quit Drag.on",
             action: #selector(quitApp),
@@ -113,6 +110,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func clearLair() {
         store.clearAll()
+    }
+
+    @objc private func openSettings() {
+        NSApp.activate()
+        if #available(macOS 14, *) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
     }
 
     @objc private func quitApp() {

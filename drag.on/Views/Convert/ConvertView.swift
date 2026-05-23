@@ -1,46 +1,42 @@
 import SwiftUI
 
-// MARK: - ConvertView (Standalone Converter Dialog Content)
+// MARK: - ConvertView (Converter Dialog Content)
 
 struct ConvertView: View {
-    @ObservedObject var store: ShelfStore
-    @ObservedObject var converter: ImageConverter
+    var store: LairStore
+    var converter: ImageConverter
     var onDismiss: () -> Void
 
     @State private var selectedFormat: ImageFormat = .webp
     @State private var customOutputDir: URL? = nil
     @State private var useCustomOutput = false
 
-    // Track active system theme
-    @Environment(\.colorScheme) var colorScheme
-
-    // Hover states for interactions
     @State private var isHoveringConvert = false
     @State private var isHoveringAdd = false
     @State private var isHoveringClearAdd = false
     @State private var isHoveringReveal = false
     @State private var isHoveringDismiss = false
 
-    // MARK: - Permanent Light Background Contrast Helpers
+    // MARK: - Theme Colors
 
     private var primaryTextColor: Color {
-        Color(red: 0.05, green: 0.22, blue: 0.45) // Rich Dark Blue
+        Color(red: 0.05, green: 0.22, blue: 0.45)
     }
 
     private var secondaryTextColor: Color {
-        Color.black.opacity(0.55) // Rich Grey
+        Color.black.opacity(0.55)
     }
 
     private var accentColor: Color {
-        Color(red: 0.0, green: 0.55, blue: 1.0) // Sky Blue
+        Color(red: 0.0, green: 0.55, blue: 1.0)
     }
 
     private var cardBackground: Color {
-        Color.black.opacity(0.04) // Very Light Translucent Grey
+        Color.black.opacity(0.04)
     }
 
     private var cardBorder: Color {
-        Color.black.opacity(0.06) // Crisp Boundary Line
+        Color.black.opacity(0.06)
     }
 
     var body: some View {
@@ -59,11 +55,8 @@ struct ConvertView: View {
         .frame(width: 320, height: 380)
         .background(
             ZStack(alignment: .top) {
-                // Permanently Solid White base
                 RoundedRectangle(cornerRadius: 20)
                     .fill(Color.white)
-                
-                // Image on the top fading into the white background at the bottom
                 Image("sky_clouds_bg")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -76,10 +69,10 @@ struct ConvertView: View {
                             endPoint: .bottom
                         )
                     )
-                    .opacity(0.85) // Subtle blend
+                    .opacity(0.85)
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .clipShape(RoundedRectangle(cornerRadius: 36))
         .onAppear {
             converter.previewOutputDirectory(for: store.items, customDir: nil)
         }
@@ -89,41 +82,32 @@ struct ConvertView: View {
 
     private var converterSettings: some View {
         VStack(spacing: 0) {
-            // Header: close on left (ZStack), centered title + grey smaller counter
             ZStack {
-                // Dismiss on the absolute left
                 HStack {
                     LairCircleButton(systemName: "xmark", action: dismiss, isLightBackground: true)
                     Spacer()
                 }
-
-                // Centered stacked Title and Subtitle
                 VStack(alignment: .center, spacing: 2) {
                     Text("Convert")
                         .font(.system(size: 24, weight: .heavy))
-                        .foregroundColor(primaryTextColor)
-                    
+                        .foregroundStyle(primaryTextColor)
                     Text("\(store.items.count) image\(store.items.count == 1 ? "" : "s") selected")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(secondaryTextColor)
+                        .foregroundStyle(secondaryTextColor)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 18)
             .padding(.bottom, 18)
 
-            // Format picker (Dropdown card style)
             VStack(alignment: .leading, spacing: 6) {
                 Text("FORMAT")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(primaryTextColor.opacity(0.7))
+                    .foregroundStyle(primaryTextColor.opacity(0.7))
                     .tracking(1.0)
-
                 Menu {
                     ForEach(ImageFormat.allCases) { format in
-                        Button(action: {
-                            selectedFormat = format
-                        }) {
+                        Button(action: { selectedFormat = format }) {
                             Text(format.rawValue)
                         }
                     }
@@ -131,25 +115,19 @@ struct ConvertView: View {
                     HStack {
                         Image(systemName: "doc.badge.gearshape")
                             .font(.system(size: 12))
-                            .foregroundColor(accentColor)
+                            .foregroundStyle(accentColor)
                         Text(selectedFormat.rawValue)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(primaryTextColor)
+                            .foregroundStyle(primaryTextColor)
                         Spacer()
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10))
-                            .foregroundColor(secondaryTextColor)
+                            .foregroundStyle(secondaryTextColor)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(cardBackground)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(cardBorder, lineWidth: 0.5)
-                    )
+                    .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,95 +135,66 @@ struct ConvertView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
 
-            // Output path (Dropdown card style)
             VStack(alignment: .leading, spacing: 6) {
                 Text("OUTPUT")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(primaryTextColor.opacity(0.7))
+                    .foregroundStyle(primaryTextColor.opacity(0.7))
                     .tracking(1.0)
-
                 HStack(spacing: 8) {
                     Image(systemName: outputIcon)
                         .font(.system(size: 12))
-                        .foregroundColor(isWebDrop ? accentColor : secondaryTextColor.opacity(0.8))
+                        .foregroundStyle(isWebDrop ? accentColor : secondaryTextColor.opacity(0.8))
                     Text(outputLabel)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(primaryTextColor.opacity(0.85))
+                        .foregroundStyle(primaryTextColor.opacity(0.85))
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer()
                     Button(action: pickCustomFolder) {
                         Image(systemName: "folder.badge.plus")
                             .font(.system(size: 12))
-                            .foregroundColor(secondaryTextColor)
+                            .foregroundStyle(secondaryTextColor)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(cardBackground)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(cardBorder, lineWidth: 0.5)
-                )
+                .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: 0.5))
             }
             .padding(.horizontal, 16)
 
             Spacer()
 
-            // Convert Now button - premium blue-sky gradient with Glass Reflection Sheen and Soft Shadow
             Button(action: startConversion) {
                 HStack(spacing: 8) {
-                    Image(systemName: "wand.and.sparkles")
-                        .font(.system(size: 13, weight: .bold))
+                    WandIcon(size: 13, weight: .bold)
                     Text("Convert Now")
                         .font(.system(size: 13, weight: .bold))
                 }
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
+                .padding(.vertical, 16)
                 .background(
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.306, green: 0.639, blue: 1.0), // #4EA3FF
-                                    Color(red: 0.584, green: 0.843, blue: 0.992) // #95D7FD
-                                ]),
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
+                    Capsule().fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.306, green: 0.639, blue: 1.0),
+                                Color(red: 0.584, green: 0.843, blue: 0.992)
+                            ]),
+                            startPoint: .bottom,
+                            endPoint: .top
                         )
+                    )
                 )
+                .overlay(Capsule().stroke(Color(red: 0.553, green: 0.820, blue: 0.992, opacity: 0.58), lineWidth: 2))
                 .overlay(
                     Capsule()
-                        .stroke(Color(red: 0.553, green: 0.820, blue: 0.992, opacity: 0.58), lineWidth: 2)
-                )
-                .overlay(
-                    // Top Right diagonal Glass Reflection Sheen
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.25),
-                                    Color.white.opacity(0.0)
-                                ],
-                                startPoint: .topTrailing,
-                                endPoint: .bottomLeading
-                            )
-                        )
+                        .fill(LinearGradient(colors: [.white.opacity(0.25), .white.opacity(0.0)], startPoint: .topTrailing, endPoint: .bottomLeading))
                         .blendMode(.screen)
                         .allowsHitTesting(false)
                 )
-                .shadow(
-                    color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35),
-                    radius: 12,
-                    x: 0,
-                    y: 6
-                )
+                .shadow(color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35), radius: 12, x: 0, y: 6)
                 .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
             }
             .buttonStyle(.plain)
@@ -262,49 +211,40 @@ struct ConvertView: View {
     private func convertingProgress(current: String, index: Int, total: Int) -> some View {
         VStack(spacing: 16) {
             Spacer()
-
             ProgressView()
                 .progressViewStyle(.circular)
                 .scaleEffect(1.0)
-
             Text("Converting...")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(primaryTextColor)
-
+                .foregroundStyle(primaryTextColor)
             Text(current)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(secondaryTextColor)
+                .foregroundStyle(secondaryTextColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .padding(.horizontal, 24)
-
             Text("\(index + 1) of \(total)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(secondaryTextColor.opacity(0.7))
-
+                .foregroundStyle(secondaryTextColor.opacity(0.7))
             Spacer()
         }
     }
 
-    // MARK: - Success (with Ghost Cards)
+    // MARK: - Success
 
     private func conversionSuccess(urls: [URL]) -> some View {
         VStack(spacing: 10) {
             Spacer().frame(height: 20)
-
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 38))
-                .foregroundColor(accentColor) // Sky blue checkmark
-
+                .foregroundStyle(accentColor)
             Text("Conversion Complete")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(primaryTextColor)
-
+                .foregroundStyle(primaryTextColor)
             Text("\(urls.count) file\(urls.count == 1 ? "" : "s") created")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(secondaryTextColor)
+                .foregroundStyle(secondaryTextColor)
 
-            // Ghost cards — miniature draggable file previews
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(urls, id: \.absoluteString) { url in
@@ -318,7 +258,6 @@ struct ConvertView: View {
 
             Spacer()
 
-            // Action buttons
             VStack(spacing: 8) {
                 HStack(spacing: 10) {
                     Button(action: {
@@ -331,12 +270,12 @@ struct ConvertView: View {
                             Text("Add to Lair")
                                 .font(.system(size: 12, weight: .bold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background(Capsule().fill(accentColor))
                         .shadow(color: accentColor.opacity(0.2), radius: 3, x: 0, y: 2)
-                        .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
+                        .scaleEffect(isHoveringAdd ? 1.03 : 1.0)
                     }
                     .buttonStyle(.plain)
                     .onHover { h in
@@ -354,7 +293,7 @@ struct ConvertView: View {
                             Text("Clear & Add")
                                 .font(.system(size: 12, weight: .bold))
                         }
-                        .foregroundColor(accentColor)
+                        .foregroundStyle(accentColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background(Capsule().fill(accentColor.opacity(0.12)))
@@ -376,7 +315,7 @@ struct ConvertView: View {
                         Text("Reveal in Finder")
                             .font(.system(size: 11, weight: .bold))
                     }
-                    .foregroundColor(secondaryTextColor)
+                    .foregroundStyle(secondaryTextColor)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 16)
                     .background(Capsule().fill(cardBackground))
@@ -396,28 +335,23 @@ struct ConvertView: View {
     private func conversionFailed(message: String) -> some View {
         VStack(spacing: 14) {
             Spacer()
-
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 32))
-                .foregroundColor(Color(red: 0.95, green: 0.4, blue: 0.1))
-
+                .foregroundStyle(Color(red: 0.95, green: 0.4, blue: 0.1))
             Text("Conversion Failed")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(primaryTextColor)
-
+                .foregroundStyle(primaryTextColor)
             Text(message)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(secondaryTextColor)
+                .foregroundStyle(secondaryTextColor)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .padding(.horizontal, 24)
-
             Spacer()
-
             Button(action: dismiss) {
                 Text("Dismiss")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(secondaryTextColor)
+                    .foregroundStyle(secondaryTextColor)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
                     .background(Capsule().fill(cardBackground))
@@ -441,10 +375,7 @@ struct ConvertView: View {
     }
 
     private var outputIcon: String {
-        if isWebDrop && !useCustomOutput {
-            return "arrow.down.circle"
-        }
-        return "folder"
+        isWebDrop && !useCustomOutput ? "arrow.down.circle" : "folder"
     }
 
     private var isWebDrop: Bool {
@@ -459,7 +390,6 @@ struct ConvertView: View {
         panel.canCreateDirectories = true
         panel.prompt = "Select"
         panel.message = "Choose output folder for converted files"
-
         if panel.runModal() == .OK, let url = panel.url {
             customOutputDir = url
             useCustomOutput = true
@@ -477,7 +407,7 @@ struct ConvertView: View {
     }
 }
 
-// MARK: - Ghost Card (Miniature draggable preview on success screen)
+// MARK: - Ghost Card
 
 struct GhostCardView: View {
     let url: URL
@@ -490,22 +420,15 @@ struct GhostCardView: View {
                 .frame(width: 42, height: 42)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .shadow(color: .black.opacity(0.15), radius: 1.5, y: 1)
-
             Text(url.lastPathComponent)
                 .font(.system(size: 8, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.65))
+                .foregroundStyle(Color.black.opacity(0.65))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(width: 58)
         }
         .padding(5)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.black.opacity(0.06), lineWidth: 0.5)
-        )
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.04)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black.opacity(0.06), lineWidth: 0.5))
     }
 }
