@@ -32,7 +32,10 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] else { return false }
-        lairStore?.addFiles(urls: urls)
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.cancelShakeAutoClose()
+        }
+        lairStore?.addFilesAsync(urls: urls)
         return true
     }
 }

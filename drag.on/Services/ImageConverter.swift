@@ -1,23 +1,9 @@
 import Foundation
 import Cocoa
 import os
+import WebP
 
 // MARK: - Conversion Types
-
-/// Supported image conversion formats.
-enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
-    case webp = "WebP"
-    case icns = "ICNS"
-
-    var id: String { rawValue }
-
-    var fileExtension: String {
-        switch self {
-        case .webp: return "webp"
-        case .icns: return "icns"
-        }
-    }
-}
 
 /// Describes the current state of a conversion operation.
 enum ConversionState: Equatable, Sendable {
@@ -81,8 +67,8 @@ final class ImageConverter {
 
     // MARK: - Public API
 
-    /// Convert a batch of FileItems to the specified format.
-    func convertFiles(items: [FileItem], format: ImageFormat, outputDir: URL?) {
+    /// Convert a batch of FileItems to the specified format with custom quality.
+    func convertFiles(items: [FileItem], format: ImageFormat, quality: Double, outputDir: URL?) {
         guard !items.isEmpty else { return }
 
         let resolvedItems: [(FileItem, URL)] = items.compactMap { item in
@@ -115,7 +101,7 @@ final class ImageConverter {
                 do {
                     switch format {
                     case .webp:
-                        try self.convertToWebP(source: sourceURL, destination: destURL)
+                        try self.convertToWebP(source: sourceURL, destination: destURL, quality: quality)
                     case .icns:
                         try self.convertToICNS(source: sourceURL, destination: destURL)
                     }
@@ -176,15 +162,52 @@ final class ImageConverter {
 
     // MARK: - WebP Conversion
 
-    nonisolated private func convertToWebP(source: URL, destination: URL) throws {
-        let result = try runProcess(
-            executablePath: sipsPath,
-            arguments: ["-s", "format", "webp", source.path, "--out", destination.path]
-        )
-
-        guard FileManager.default.fileExists(atPath: destination.path) else {
-            throw ConversionError.outputNotCreated(detail: result)
+    nonisolated private func convertToWebP(source: URL, destination: URL, quality: Double) throws {
+        // Read the source image
+        guard let imageSource = CGImageSourceCreateWithURL(source as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            throw ConversionError.outputNotCreated(detail: "Failed to load source image.")
         }
+        
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let stride = width * bytesPerPixel
+        let byteCount = stride * height
+        
+        var bytes = [UInt8](repeating: 0, count: byteCount)
+        
+        guard let context = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: stride,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue // RGBA
+        ) else {
+            throw ConversionError.outputNotCreated(detail: "Failed to create CGContext for rendering.")
+        }
+        
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+        
+        let encoder = WebPEncoder()
+        let qualityFloat = Float(quality * 100.0) // slider is 0.0 - 1.0, quality configuration is 0.0 - 100.0
+        
+        let webPData: Data = try bytes.withUnsafeMutableBufferPointer { bufferPointer in
+            guard let baseAddress = bufferPointer.baseAddress else {
+                throw ConversionError.outputNotCreated(detail: "Failed to obtain mutable memory address for pixel buffer.")
+            }
+            return try encoder.encode(
+                RGBA: baseAddress,
+                config: WebPEncoderConfig.preset(.picture, quality: qualityFloat),
+                originWidth: width,
+                originHeight: height,
+                stride: stride
+            )
+        }
+        
+        try webPData.write(to: destination)
     }
 
     // MARK: - ICNS Conversion

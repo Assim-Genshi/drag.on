@@ -38,7 +38,10 @@ final class DropTargetView: NSView {
         ) as? [URL] else {
             return false
         }
-        store.addFiles(urls: urls)
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.cancelShakeAutoClose()
+        }
+        store.addFilesAsync(urls: urls)
         return true
     }
 }

@@ -9,4 +9,6 @@ extension Logger {
     static let dragMonitor = Logger(subsystem: "com.yokai.drag-on", category: "DragMonitor")
     /// Logger for file item operations.
     static let fileItem = Logger(subsystem: "com.yokai.drag-on", category: "FileItem")
+    /// Logger for thumbnail cache operations.
+    static let thumbnailCache = Logger(subsystem: "com.yokai.drag-on", category: "ThumbnailCache")
 }

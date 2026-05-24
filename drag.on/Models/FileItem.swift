@@ -2,6 +2,7 @@ import Cocoa
 import QuickLookThumbnailing
 import UniformTypeIdentifiers
 import os
+import ImageIO
 
 /// Represents a file stored in the Lair with persistent bookmark access.
 struct FileItem: Codable, Identifiable, Equatable, Sendable {
@@ -60,7 +61,7 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
 
     // MARK: - Icons & Thumbnails
 
-    /// Get the file icon from the workspace.
+    /// Get the file icon from the workspace (fast, no I/O).
     @MainActor
     func icon() -> NSImage {
         if let url = resolveURL() {
@@ -69,64 +70,65 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
         return NSWorkspace.shared.icon(for: .data)
     }
 
-    /// Get a thumbnail preview of the file (synchronous, uses QuickLook).
-    /// Falls back to the system icon if thumbnail generation is too slow.
+    /// Lightweight placeholder for immediate display while async thumbnail loads.
+    /// Uses the system icon which is always fast and cached by the OS.
+    @MainActor
+    func placeholderImage() -> NSImage {
+        if let url = resolveURL() {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        return NSWorkspace.shared.icon(for: .data)
+    }
+
+    /// Synchronous thumbnail for drag preview images (backward compat).
+    /// Prefer `thumbnailAsync()` for display in views.
     @MainActor
     func thumbnail() -> NSImage {
         guard let url = resolveURL() else {
             return NSWorkspace.shared.icon(for: .data)
         }
 
-        let size = CGSize(width: 180, height: 180)
-        let request = QLThumbnailGenerator.Request(
-            fileAt: url,
-            size: size,
-            scale: 2.0,
-            representationTypes: .thumbnail
-        )
-
-        var result: NSImage?
-        let semaphore = DispatchSemaphore(value: 0)
-
-        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
-            if let rep = rep {
-                result = rep.nsImage
+        if isImage {
+            // For SVGs, load natively via NSImage to preserve vectors and transparency
+            if url.pathExtension.lowercased() == "svg" {
+                if let img = NSImage(contentsOf: url) {
+                    return img
+                }
             }
-            semaphore.signal()
+
+            // For other images, use CGImageSource for memory-efficient downsampled thumbnails
+            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+            if let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) {
+                let thumbnailOptions: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceShouldCacheImmediately: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 180
+                ]
+                if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) {
+                    let cgSize = NSSize(width: cgImage.width, height: cgImage.height)
+                    return NSImage(cgImage: cgImage, size: cgSize)
+                }
+            }
         }
 
-        let timeout = semaphore.wait(timeout: .now() + 0.5)
-        if timeout == .timedOut || result == nil {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return result!
+        return NSWorkspace.shared.icon(forFile: url.path)
     }
 
-    /// Async variant of thumbnail generation for modern Swift concurrency contexts.
+    /// Async thumbnail generation routed through `ThumbnailCache`.
+    /// Uses QLThumbnailGenerator for hardware-accelerated, Retina-quality previews.
     @MainActor
     func thumbnailAsync(size: CGSize = CGSize(width: 180, height: 180)) async -> NSImage {
         guard let url = resolveURL() else {
             return NSWorkspace.shared.icon(for: .data)
         }
 
-        let request = QLThumbnailGenerator.Request(
-            fileAt: url,
+        return await ThumbnailCache.shared.thumbnail(
+            for: id,
+            url: url,
             size: size,
-            scale: 2.0,
-            representationTypes: .thumbnail
+            isImage: isImage
         )
-
-        return await withCheckedContinuation { continuation in
-            QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
-                DispatchQueue.main.async {
-                    if let rep = rep {
-                        continuation.resume(returning: rep.nsImage)
-                    } else {
-                        continuation.resume(returning: NSWorkspace.shared.icon(forFile: url.path))
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Image Detection

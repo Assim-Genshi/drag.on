@@ -1,18 +1,21 @@
 import Cocoa
 import SwiftUI
+import Combine
 
 /// A separate floating HUD panel for the image converter dialog.
 final class ConvertPanel: NSPanel {
 
     private let store: LairStore
     private let converter: ImageConverter
+    var onDismissCallback: (() -> Void)?
+    private var cancellables = Set<AnyCancellable>()
 
     init(store: LairStore, converter: ImageConverter) {
         self.store = store
         self.converter = converter
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: LairConstants.Convert.width, height: LairConstants.Convert.height),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: true
@@ -20,6 +23,8 @@ final class ConvertPanel: NSPanel {
 
         configurePanel()
         setupContent()
+        setupUserDefaultsObserver()
+        applyTheme()
     }
 
     // MARK: - Configuration
@@ -39,7 +44,7 @@ final class ConvertPanel: NSPanel {
     // MARK: - Content
 
     private func setupContent() {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 380))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: LairConstants.Convert.width, height: LairConstants.Convert.height))
         container.autoresizingMask = [.width, .height]
         contentView = container
 
@@ -49,7 +54,7 @@ final class ConvertPanel: NSPanel {
         visualEffect.state = .active
         visualEffect.blendingMode = .behindWindow
         visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 20
+        visualEffect.layer?.cornerRadius = LairConstants.Convert.cornerRadius
         visualEffect.layer?.masksToBounds = true
         visualEffect.layer?.borderWidth = 0.5
         visualEffect.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
@@ -62,7 +67,7 @@ final class ConvertPanel: NSPanel {
                 self?.dismiss()
             }
         )
-        let hosting = NSHostingView(rootView: convertView)
+        let hosting = FirstMouseHostingView(rootView: convertView)
         hosting.frame = container.bounds
         hosting.autoresizingMask = [.width, .height]
         hosting.wantsLayer = true
@@ -73,8 +78,8 @@ final class ConvertPanel: NSPanel {
     // MARK: - Show / Dismiss
 
     func show(relativeTo lairFrame: NSRect) {
-        let panelWidth: CGFloat = 320
-        let panelHeight: CGFloat = 380
+        let panelWidth: CGFloat = LairConstants.Convert.width
+        let panelHeight: CGFloat = LairConstants.Convert.height
 
         let screen = NSScreen.screens.first(where: {
             $0.frame.contains(NSPoint(x: lairFrame.midX, y: lairFrame.midY))
@@ -107,7 +112,29 @@ final class ConvertPanel: NSPanel {
             self.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             self?.orderOut(nil)
+            self?.onDismissCallback?()
         })
+    }
+
+    private func setupUserDefaultsObserver() {
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applyTheme()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func applyTheme() {
+        let theme = UserDefaults.standard.string(forKey: "appTheme") ?? "System"
+        switch theme {
+        case "Light":
+            appearance = NSAppearance(named: .aqua)
+        case "Dark":
+            appearance = NSAppearance(named: .darkAqua)
+        default:
+            appearance = nil
+        }
     }
 
     override var canBecomeKey: Bool { true }

@@ -1,4 +1,5 @@
 import Cocoa
+import os
 
 /// Detects mouse "shake" gestures — rapid horizontal direction reversals
 /// while the mouse button is held down during a file drag.
@@ -9,8 +10,13 @@ final class ShakeDetector {
 
     // MARK: - Configuration
 
+    private let reversalsLock = OSAllocatedUnfairLock(initialState: 3)
+
     /// Number of direction changes needed to trigger a shake.
-    var requiredReversals: Int = 3
+    var requiredReversals: Int {
+        get { reversalsLock.withLock { $0 } }
+        set { reversalsLock.withLock { $0 = newValue } }
+    }
     /// Maximum time window (seconds) for reversals to count.
     var timeWindow: TimeInterval = 0.5
     /// Minimum velocity (px/s) for a movement to count.

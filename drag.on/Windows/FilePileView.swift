@@ -5,6 +5,7 @@ final class FilePileNSView: NSView, NSDraggingSource {
 
     private let store: LairStore
     private var cardViews: [FileCardNSView] = []
+    private var needsReload = false
 
     init(store: LairStore) {
         self.store = store
@@ -41,7 +42,10 @@ final class FilePileNSView: NSView, NSDraggingSource {
         ) as? [URL] else {
             return false
         }
-        store.addFiles(urls: urls)
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.cancelShakeAutoClose()
+        }
+        store.addFilesAsync(urls: urls)
         return true
     }
 
@@ -56,7 +60,18 @@ final class FilePileNSView: NSView, NSDraggingSource {
         let items = Array(store.items.suffix(5))
         guard !items.isEmpty else { return }
 
-        let maxDimension: CGFloat = 100
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        let isConvertShown = store.hasImages && !isCompact
+        
+        let maxDimension: CGFloat
+        if isCompact {
+            maxDimension = LairConstants.Lair.fileItemCompactDimension
+        } else if isConvertShown {
+            maxDimension = LairConstants.Lair.fileItemLargeDimension
+        } else {
+            maxDimension = LairConstants.Lair.fileItemStandardDimension
+        }
+        
         let padding: CGFloat = 5
         let rotations: [Double] = [0, -5, 4, -3, 6]
 
@@ -94,19 +109,36 @@ final class FilePileNSView: NSView, NSDraggingSource {
             card.frameCenterRotation = rot
 
             card.shadow = NSShadow()
-            card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.45).cgColor
-            card.layer?.shadowRadius = 8
-            card.layer?.shadowOffset = CGSize(width: 0, height: -3)
-            card.layer?.shadowOpacity = 1
+            if item.isImage {
+                card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.45).cgColor
+                card.layer?.shadowRadius = 8
+                card.layer?.shadowOffset = CGSize(width: 0, height: -3)
+                card.layer?.shadowOpacity = 1
+            } else {
+                card.layer?.shadowOpacity = 0
+            }
 
             addSubview(card)
             cardViews.append(card)
+
+            // Fire async thumbnail loading — non-blocking
+            card.loadThumbnailAsync()
         }
     }
 
     override func layout() {
         super.layout()
-        reloadCards()
+        // Only reload if flagged — avoid redundant reloads on every layout pass
+        if needsReload {
+            needsReload = false
+            reloadCards()
+        }
+    }
+
+    /// Mark that cards need reloading on next layout pass.
+    func setNeedsReload() {
+        needsReload = true
+        needsLayout = true
     }
 
     // MARK: - NSDraggingSource
@@ -115,6 +147,6 @@ final class FilePileNSView: NSView, NSDraggingSource {
         _ session: NSDraggingSession,
         sourceOperationMaskFor context: NSDraggingContext
     ) -> NSDragOperation {
-        return context == .outsideApplication ? .copy : .move
+        return .copy
     }
 }

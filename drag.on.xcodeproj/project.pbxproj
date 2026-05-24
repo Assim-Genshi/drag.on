@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		79BE98692FC2A30E00C194DF /* WebP in Frameworks */ = {isa = PBXBuildFile; productRef = 792B8D6A2FC29F9E00BC8880 /* WebP */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		796853C12F3E29890068B99A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				79BE98692FC2A30E00C194DF /* WebP in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = drag.on;
 			packageProductDependencies = (
+				792B8D6A2FC29F9E00BC8880 /* WebP */,
 			);
 			productName = drag.on;
 			productReference = 796853AF2F3E29850068B99A /* drag.on.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 796853A62F3E29850068B99A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				792B8D692FC29F9E00BC8880 /* XCRemoteSwiftPackageReference "Swift-WebP" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 796853B02F3E29850068B99A /* Products */;
 			projectDirPath = "";
@@ -399,6 +408,9 @@
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Drag.on needs access to your Desktop to read and write images.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Drag.on needs access to your Documents folder to read and write files.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Drag.on needs access to your Downloads folder to save converted images.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -425,6 +437,9 @@
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Drag.on needs access to your Desktop to read and write images.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Drag.on needs access to your Documents folder to read and write files.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Drag.on needs access to your Downloads folder to save converted images.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -543,6 +558,24 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		792B8D692FC29F9E00BC8880 /* XCRemoteSwiftPackageReference "Swift-WebP" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ainame/Swift-WebP";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		792B8D6A2FC29F9E00BC8880 /* WebP */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = WebP;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 796853A72F3E29850068B99A /* Project object */;
 }

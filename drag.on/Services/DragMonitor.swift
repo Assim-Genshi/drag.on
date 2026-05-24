@@ -3,19 +3,29 @@ import os
 
 /// Monitors mouse position at 60Hz during active file drags.
 /// Feeds positions to ShakeDetector to detect the "shake to summon" gesture.
+///
+/// Runs entirely on a background queue to avoid blocking the main thread
+/// with IPC calls to NSPasteboard.
 final class DragMonitor {
 
     let shakeDetector = ShakeDetector()
+    var onDragEnded: (() -> Void)?
 
     private var pollTimer: DispatchSourceTimer?
     private var wasButtonDown = false
+
+    /// High-priority background queue for polling — keeps main thread free.
+    private let pollQueue = DispatchQueue(
+        label: "com.yokai.drag-on.drag-monitor",
+        qos: .userInteractive
+    )
 
     // MARK: - Lifecycle
 
     func startMonitoring() {
         stopMonitoring()
 
-        let timer = DispatchSource.makeTimerSource(queue: .main)
+        let timer = DispatchSource.makeTimerSource(queue: pollQueue)
         timer.schedule(deadline: .now(), repeating: .milliseconds(16)) // ~60Hz
         timer.setEventHandler { [weak self] in
             self?.pollMouseState()
@@ -23,7 +33,7 @@ final class DragMonitor {
         timer.resume()
         pollTimer = timer
 
-        Logger.dragMonitor.info("Started polling at 60Hz")
+        Logger.dragMonitor.info("Started polling at 60Hz (background queue)")
     }
 
     func stopMonitoring() {
@@ -33,9 +43,10 @@ final class DragMonitor {
         Logger.dragMonitor.info("Stopped polling")
     }
 
-    // MARK: - Polling
+    // MARK: - Polling (runs on pollQueue)
 
     private func pollMouseState() {
+        // CGEventSource.buttonState and NSEvent.mouseLocation are thread-safe
         let isButtonDown = CGEventSource.buttonState(
             .combinedSessionState,
             button: .left
@@ -49,14 +60,17 @@ final class DragMonitor {
             }
         } else if wasButtonDown {
             shakeDetector.reset()
+            onDragEnded?()
         }
 
         wasButtonDown = isButtonDown
     }
 
-    // MARK: - File Drag Detection
+    // MARK: - File Drag Detection (runs on pollQueue)
 
     /// Check if the system drag pasteboard contains file URLs.
+    /// NSPasteboard queries involve synchronous IPC — running this on the
+    /// background queue prevents main-thread hitching.
     private func isFileDragActive() -> Bool {
         let dragPasteboard = NSPasteboard(name: .drag)
         return dragPasteboard.canReadObject(

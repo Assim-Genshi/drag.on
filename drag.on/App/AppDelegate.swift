@@ -15,22 +15,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-
+ 
         lairWindow = LairWindow(store: store, converter: converter)
-
-        // Apply saved shake sensitivity
-        let sensitivity = UserDefaults.standard.double(forKey: "shakeSensitivity")
-        if sensitivity > 0 {
-            dragMonitor.shakeDetector.requiredReversals = Int(sensitivity)
-        }
-
+ 
+        // Apply saved shake sensitivity initially
+        updateSensitivity()
+ 
+        // Observe shake sensitivity changes dynamically
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateSensitivity),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+ 
         dragMonitor.shakeDetector.onShakeDetected = { [weak self] location in
             DispatchQueue.main.async {
-                self?.lairWindow?.show(near: location)
+                self?.lairWindow?.show(near: location, isShake: true)
             }
         }
+ 
+        dragMonitor.onDragEnded = { [weak self] in
+            DispatchQueue.main.async {
+                self?.lairWindow?.handleDragEnded()
+            }
+        }
+ 
         dragMonitor.startMonitoring()
-
+ 
         setupStatusItem()
     }
 
@@ -77,6 +89,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         clearItem.target = self
         menu.addItem(clearItem)
+ 
+        let restoreItem = NSMenuItem(
+            title: "Previous Lair",
+            action: #selector(restorePreviousLair),
+            keyEquivalent: "p"
+        )
+        restoreItem.keyEquivalentModifierMask = [.command, .shift]
+        restoreItem.target = self
+        menu.addItem(restoreItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -111,11 +132,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func clearLair() {
         store.clearAll()
     }
+ 
+    @objc private func restorePreviousLair() {
+        store.restorePreviousLair()
+        let mouseLocation = NSEvent.mouseLocation
+        lairWindow?.show(near: mouseLocation)
+    }
 
     @objc private func openSettings() {
         NSApp.activate()
         if #available(macOS 14, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            SettingsOpener.shared.openSettings()
         } else {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
@@ -124,5 +151,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quitApp() {
         dragMonitor.stopMonitoring()
         NSApplication.shared.terminate(nil)
+    }
+
+    @objc private func updateSensitivity() {
+        let sensitivity = UserDefaults.standard.double(forKey: "shakeSensitivity")
+        if sensitivity > 0 {
+            dragMonitor.shakeDetector.requiredReversals = Int(sensitivity)
+        }
+    }
+
+    // MARK: - NSMenuItemValidation
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(restorePreviousLair) {
+            return !store.previousItems.isEmpty
+        }
+        return true
     }
 }

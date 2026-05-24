@@ -11,13 +11,20 @@ final class LairWindow: NSPanel {
     private var filePileView: FilePileNSView?
     private var convertPanel: ConvertPanel?
     private var cancellables = Set<AnyCancellable>()
+    private var lastCompactModeValue: Bool = false
+    private var wasShownByShake: Bool = false
 
     init(store: LairStore, converter: ImageConverter) {
         self.store = store
         self.converter = converter
 
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        self.lastCompactModeValue = isCompact
+        let initialWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+        let initialHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 260, height: 320),
+            contentRect: NSRect(x: 0, y: 0, width: initialWidth, height: initialHeight),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: true
@@ -26,6 +33,8 @@ final class LairWindow: NSPanel {
         configurePanel()
         setupContent()
         observeStoreChanges()
+        setupUserDefaultsObserver()
+        applyTheme()
     }
 
     // MARK: - Panel Configuration
@@ -45,8 +54,12 @@ final class LairWindow: NSPanel {
     // MARK: - Content Setup
 
     private func setupContent() {
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        let currentWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+        let currentHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+
         let dropView = DropTargetView(store: store)
-        dropView.frame = NSRect(x: 0, y: 0, width: 260, height: 320)
+        dropView.frame = NSRect(x: 0, y: 0, width: currentWidth, height: currentHeight)
         dropView.autoresizingMask = [.width, .height]
         contentView = dropView
 
@@ -56,17 +69,11 @@ final class LairWindow: NSPanel {
         visualEffect.state = .active
         visualEffect.blendingMode = .behindWindow
         visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 26
+        visualEffect.layer?.cornerRadius = LairConstants.Lair.cornerRadius
         visualEffect.layer?.masksToBounds = true
-        visualEffect.layer?.borderWidth = 0.5
-        visualEffect.layer?.borderColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        // Borders are styled and drawn dynamically in SwiftUI LairView using Color("border-color")
+        visualEffect.layer?.borderWidth = 0
         dropView.addSubview(visualEffect)
-
-        let pile = FilePileNSView(store: store)
-        pile.frame = NSRect(x: 12, y: 60, width: 236, height: 200)
-        pile.autoresizingMask = [.width, .height]
-        visualEffect.addSubview(pile)
-        self.filePileView = pile
 
         let lairView = LairView(store: store, onClose: { [weak self] in
             self?.hide()
@@ -82,11 +89,17 @@ final class LairWindow: NSPanel {
         visualEffect.addSubview(hosting)
         self.hostingView = hosting
 
+        let pile = FilePileNSView(store: store)
+        pile.autoresizingMask = [.width, .height]
+        visualEffect.addSubview(pile)
+        self.filePileView = pile
+        updateFilePileFrame()
+
         let pillWidth: CGFloat = 60
         let handleView = WindowDragHandleView(frame: .zero)
         handleView.frame = NSRect(
-            x: (260 - pillWidth) / 2,
-            y: 320 - 24,
+            x: (currentWidth - pillWidth) / 2,
+            y: currentHeight - 24,
             width: pillWidth,
             height: 30
         )
@@ -102,20 +115,57 @@ final class LairWindow: NSPanel {
             _ = store.items
         } onChange: { [weak self] in
             DispatchQueue.main.async {
+                self?.updateFilePileFrame()
                 self?.filePileView?.reloadCards()
                 self?.observeStoreChanges()
             }
         }
     }
 
+    private func updateFilePileFrame() {
+        guard let pile = filePileView else { return }
+        
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        let isConvertShown = store.hasImages && !isCompact
+        let currentWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+        
+        let y: CGFloat
+        let height: CGFloat
+        
+        if isCompact {
+            y = LairConstants.Lair.filePileYCompact
+            height = LairConstants.Lair.filePileHeightCompact
+        } else if isConvertShown {
+            y = LairConstants.Lair.filePileYConvertShown
+            height = LairConstants.Lair.filePileHeightConvertShown
+        } else {
+            y = LairConstants.Lair.filePileYStandard
+            height = LairConstants.Lair.filePileHeightStandard
+        }
+        
+        let newFrame = NSRect(
+            x: LairConstants.Lair.filePileX,
+            y: y,
+            width: currentWidth - (LairConstants.Lair.filePileX * 2),
+            height: height
+        )
+        
+        if pile.frame != newFrame {
+            pile.frame = newFrame
+            pile.reloadCards()
+        }
+    }
+
     // MARK: - Show / Hide
 
-    func show(near point: NSPoint) {
+    func show(near point: NSPoint, isShake: Bool = false) {
+        self.wasShownByShake = isShake
         let screen = screenContaining(point: point) ?? NSScreen.main ?? NSScreen.screens[0]
         let screenFrame = screen.visibleFrame
 
-        let panelWidth: CGFloat = 260
-        let panelHeight: CGFloat = 320
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        let panelWidth: CGFloat = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+        let panelHeight: CGFloat = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
 
         var x = point.x - panelWidth / 2
         var y = point.y - panelHeight - 20
@@ -134,7 +184,47 @@ final class LairWindow: NSPanel {
         }
     }
 
+    private func setupUserDefaultsObserver() {
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.handleCompactModeChange()
+                self?.applyTheme()
+            }
+            .store(in: &cancellables)
+    }
+ 
+    private func handleCompactModeChange() {
+        let currentCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        guard currentCompact != lastCompactModeValue else { return }
+        lastCompactModeValue = currentCompact
+        
+        let targetWidth = currentCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+        let targetHeight = currentCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+        
+        let currentFrame = frame
+        let newX = currentFrame.midX - targetWidth / 2
+        let newY = currentFrame.maxY - targetHeight
+        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
+        
+        setFrame(newFrame, display: true, animate: true)
+        updateFilePileFrame()
+    }
+
+    private func applyTheme() {
+        let theme = UserDefaults.standard.string(forKey: "appTheme") ?? "System"
+        switch theme {
+        case "Light":
+            appearance = NSAppearance(named: .aqua)
+        case "Dark":
+            appearance = NSAppearance(named: .darkAqua)
+        default:
+            appearance = nil
+        }
+    }
+
     func hide() {
+        wasShownByShake = false
         convertPanel?.dismiss()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.15
@@ -144,9 +234,24 @@ final class LairWindow: NSPanel {
             self.orderOut(nil)
         })
     }
-
+ 
     func toggle(near point: NSPoint) {
         if isVisible { hide() } else { show(near: point) }
+    }
+
+    func cancelShakeAutoClose() {
+        wasShownByShake = false
+    }
+
+    func handleDragEnded() {
+        guard wasShownByShake else { return }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            if self.wasShownByShake {
+                self.hide()
+            }
+        }
     }
 
     // MARK: - Convert Panel
@@ -155,7 +260,39 @@ final class LairWindow: NSPanel {
         if convertPanel == nil {
             convertPanel = ConvertPanel(store: store, converter: converter)
         }
-        convertPanel?.show(relativeTo: self.frame)
+        
+        let lairFrame = self.frame
+        
+        convertPanel?.onDismissCallback = { [weak self] in
+            // When the convert panel is closed, restore the Lair window exactly where it was!
+            self?.showAtFrame(lairFrame)
+        }
+        
+        convertPanel?.show(relativeTo: lairFrame)
+        
+        // Hide the Lair window!
+        self.hideWithoutDismissingConvert()
+    }
+
+    private func hideWithoutDismissingConvert() {
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.15
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            self.animator().alphaValue = 0
+        }, completionHandler: {
+            self.orderOut(nil)
+        })
+    }
+
+    func showAtFrame(_ frame: NSRect) {
+        setFrame(frame, display: true)
+        alphaValue = 0
+        orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            self.animator().alphaValue = 1
+        }
     }
 
     // MARK: - Helpers

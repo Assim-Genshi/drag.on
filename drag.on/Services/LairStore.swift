@@ -10,15 +10,18 @@ final class LairStore: FileStoring {
     // MARK: - Published State
 
     var items: [FileItem] = []
+    var previousItems: [FileItem] = []
 
     // MARK: - Private
 
     private let storageKey = "dragOnLairItems"
+    private let previousStorageKey = "dragOnPreviousLairItems"
 
     // MARK: - Initialization
 
     init() {
         loadItems()
+        loadPreviousItems()
     }
 
     // MARK: - Public API
@@ -48,6 +51,38 @@ final class LairStore: FileStoring {
         }
     }
 
+    /// Add multiple files asynchronously — offloads bookmark creation to background threads.
+    /// Results are batched and published atomically on the MainActor.
+    func addFilesAsync(urls: [URL]) {
+        let existingPaths = Set(items.map(\.filePath))
+        let newURLs = urls.filter { !existingPaths.contains($0.path) }
+        guard !newURLs.isEmpty else { return }
+
+        Task(priority: .userInitiated) {
+            let newItems = await withTaskGroup(of: FileItem?.self, returning: [FileItem].self) { group in
+                for url in newURLs {
+                    group.addTask {
+                        // Bookmark creation runs off the main thread
+                        FileItem.from(url: url)
+                    }
+                }
+                var results: [FileItem] = []
+                for await item in group {
+                    if let item { results.append(item) }
+                }
+                return results
+            }
+
+            guard !newItems.isEmpty else { return }
+
+            // Publish atomically on the MainActor
+            await MainActor.run {
+                self.items.append(contentsOf: newItems)
+                self.saveItems()
+            }
+        }
+    }
+
     /// Remove a file from the lair by ID.
     func removeFile(id: UUID) {
         items.removeAll { $0.id == id }
@@ -58,11 +93,17 @@ final class LairStore: FileStoring {
     func clearAll() {
         items.removeAll()
         saveItems()
+        ThumbnailCache.shared.clear()
     }
 
     /// Whether all items in the lair are images.
     var allItemsAreImages: Bool {
         !items.isEmpty && items.allSatisfy { $0.isImage }
+    }
+
+    /// Whether at least one item in the lair is an image.
+    var hasImages: Bool {
+        items.contains { $0.isImage }
     }
 
     // MARK: - Persistence
@@ -71,8 +112,38 @@ final class LairStore: FileStoring {
         do {
             let data = try JSONEncoder().encode(items)
             UserDefaults.standard.set(data, forKey: storageKey)
+            
+            if !items.isEmpty {
+                previousItems = items
+                savePreviousItems()
+            }
         } catch {
             Logger.lairStore.error("Failed to save lair items: \(error.localizedDescription)")
+        }
+    }
+
+    private func savePreviousItems() {
+        do {
+            let data = try JSONEncoder().encode(previousItems)
+            UserDefaults.standard.set(data, forKey: previousStorageKey)
+        } catch {
+            Logger.lairStore.error("Failed to save previous lair items: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadPreviousItems() {
+        guard let data = UserDefaults.standard.data(forKey: previousStorageKey) else { return }
+        do {
+            let decoded = try JSONDecoder().decode([FileItem].self, from: data)
+            previousItems = decoded.filter { item in
+                let url = item.resolveURL()
+                return url != nil
+            }
+            if previousItems.count != decoded.count {
+                savePreviousItems()
+            }
+        } catch {
+            Logger.lairStore.error("Failed to load previous lair items: \(error.localizedDescription)")
         }
     }
 
@@ -93,6 +164,14 @@ final class LairStore: FileStoring {
             }
         } catch {
             Logger.lairStore.error("Failed to load lair items: \(error.localizedDescription)")
+        }
+    }
+
+    /// Restore the previous non-empty lair items into the active list.
+    func restorePreviousLair() {
+        if !previousItems.isEmpty {
+            items = previousItems
+            saveItems()
         }
     }
 }

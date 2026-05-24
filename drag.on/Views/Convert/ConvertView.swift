@@ -10,21 +10,25 @@ struct ConvertView: View {
     @State private var selectedFormat: ImageFormat = .webp
     @State private var customOutputDir: URL? = nil
     @State private var useCustomOutput = false
+    @State private var quality: Double = 0.85
 
     @State private var isHoveringConvert = false
+    @State private var isHoveringCancel = false
     @State private var isHoveringAdd = false
     @State private var isHoveringClearAdd = false
     @State private var isHoveringReveal = false
     @State private var isHoveringDismiss = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
     // MARK: - Theme Colors
 
     private var primaryTextColor: Color {
-        Color(red: 0.05, green: 0.22, blue: 0.45)
+        Color("content-100")
     }
 
     private var secondaryTextColor: Color {
-        Color.black.opacity(0.55)
+        Color("content-200")
     }
 
     private var accentColor: Color {
@@ -32,13 +36,12 @@ struct ConvertView: View {
     }
 
     private var cardBackground: Color {
-        Color.black.opacity(0.04)
+        Color("Secondary-surfece")
     }
 
     private var cardBorder: Color {
-        Color.black.opacity(0.06)
+        Color("border-color")
     }
-
     var body: some View {
         Group {
             switch converter.state {
@@ -52,29 +55,32 @@ struct ConvertView: View {
                 conversionFailed(message: message)
             }
         }
-        .frame(width: 320, height: 380)
+        .frame(width: LairConstants.Convert.width, height: LairConstants.Convert.height)
         .background(
             ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white)
-                Image("sky_clouds_bg")
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 320, height: 160)
-                    .clipped()
-                    .mask(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.black, .black, .black.opacity(0.8), .clear]),
-                            startPoint: .top,
-                            endPoint: .bottom
+                RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius)
+                    .fill(Color("main-surfece"))
+                if colorScheme != .dark {
+                    Image("sky_clouds_bg")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: LairConstants.Convert.width, height: 160)
+                        .clipped()
+                        .mask(
+                            LinearGradient(
+                                gradient: Gradient(colors: [.black, .black, .black.opacity(0.8), .clear]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         )
-                    )
-                    .opacity(0.85)
+                        .opacity(0.85)
+                }
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 36))
+        .clipShape(RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius))
         .onAppear {
-            converter.previewOutputDirectory(for: store.items, customDir: nil)
+            let imageItems = store.items.filter(\.isImage)
+            converter.previewOutputDirectory(for: imageItems, customDir: nil)
         }
     }
 
@@ -82,124 +88,184 @@ struct ConvertView: View {
 
     private var converterSettings: some View {
         VStack(spacing: 0) {
-            ZStack {
-                HStack {
-                    LairCircleButton(systemName: "xmark", action: dismiss, isLightBackground: true)
-                    Spacer()
-                }
-                VStack(alignment: .center, spacing: 2) {
-                    Text("Convert")
-                        .font(.system(size: 24, weight: .heavy))
-                        .foregroundStyle(primaryTextColor)
-                    Text("\(store.items.count) image\(store.items.count == 1 ? "" : "s") selected")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(secondaryTextColor)
-                }
+            VStack(alignment: .center, spacing: 2) {
+                Text("Convert")
+                    .font(.system(size: 24, weight: .heavy))
+                    .foregroundStyle(primaryTextColor)
+                let imageCount = store.items.filter(\.isImage).count
+                Text("\(imageCount) image\(imageCount == 1 ? "" : "s") selected")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(secondaryTextColor)
             }
-            .padding(.horizontal, 16)
             .padding(.top, 18)
-            .padding(.bottom, 18)
+            .padding(.bottom, 12)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("FORMAT")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(primaryTextColor.opacity(0.7))
-                    .tracking(1.0)
-                Menu {
-                    ForEach(ImageFormat.allCases) { format in
-                        Button(action: { selectedFormat = format }) {
-                            Text(format.rawValue)
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("FORMAT")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(primaryTextColor.opacity(0.7))
+                        .tracking(1.0)
+                    Menu {
+                        ForEach(ImageFormat.allCases) { format in
+                            Button(action: { selectedFormat = format }) {
+                                Text(format.rawValue)
+                            }
                         }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "doc.badge.gearshape")
-                            .font(.system(size: 12))
-                            .foregroundStyle(accentColor)
-                        Text(selectedFormat.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(primaryTextColor)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10))
-                            .foregroundStyle(secondaryTextColor)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("OUTPUT")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(primaryTextColor.opacity(0.7))
-                    .tracking(1.0)
-                HStack(spacing: 8) {
-                    Image(systemName: outputIcon)
-                        .font(.system(size: 12))
-                        .foregroundStyle(isWebDrop ? accentColor : secondaryTextColor.opacity(0.8))
-                    Text(outputLabel)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(primaryTextColor.opacity(0.85))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Button(action: pickCustomFolder) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 12))
-                            .foregroundStyle(secondaryTextColor)
+                    } label: {
+                        HStack {
+                            Image(systemName: "doc.badge.gearshape")
+                                .font(.system(size: 12))
+                                .foregroundStyle(accentColor)
+                            Text(selectedFormat.rawValue)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(primaryTextColor)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10))
+                                .foregroundStyle(secondaryTextColor)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth))
                     }
                     .buttonStyle(.plain)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .pointerCursor()
+
+                    Text("Select the target file type for compression")
+                        .font(.system(size: 9))
+                        .foregroundStyle(secondaryTextColor)
+                        .padding(.top, 2)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: 0.5))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    CapsuleSlider(
+                        value: $quality,
+                        primaryTextColor: primaryTextColor,
+                        secondaryTextColor: secondaryTextColor,
+                        cardBackground: cardBackground,
+                        cardBorder: cardBorder
+                    )
+                    .pointerCursor()
+
+                    Text("Balance between file size and image fidelity")
+                        .font(.system(size: 9))
+                        .foregroundStyle(secondaryTextColor)
+                        .padding(.top, 2)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("OUTPUT LOCATION")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(primaryTextColor.opacity(0.7))
+                        .tracking(1.0)
+                    
+                    Button(action: pickCustomFolder) {
+                        HStack(spacing: 8) {
+                            Image(systemName: outputIcon)
+                                .font(.system(size: 12))
+                                .foregroundStyle(isWebDrop ? accentColor : secondaryTextColor.opacity(0.8))
+                            Text(outputLabel)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(primaryTextColor.opacity(0.85))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 12))
+                                .foregroundStyle(secondaryTextColor)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(cardBackground))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+
+                    Text("Where the converted files will be saved")
+                        .font(.system(size: 9))
+                        .foregroundStyle(secondaryTextColor)
+                        .padding(.top, 2)
+                }
             }
             .padding(.horizontal, 16)
 
             Spacer()
 
-            Button(action: startConversion) {
-                HStack(spacing: 8) {
-                    WandIcon(size: 13, weight: .bold)
-                    Text("Convert Now")
+            VStack(spacing: 8) {
+                Button(action: dismiss) {
+                    Text("Cancel")
                         .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(primaryTextColor.opacity(0.9))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            Capsule().fill(Color.secondarySurfece)
+                        )
+                        .overlay(
+                            Capsule().stroke(Color.border.opacity(0.08), lineWidth: 1.0)
+                        )
+                        .scaleEffect(isHoveringCancel ? 1.03 : 1.0)
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(
-                    Capsule().fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.306, green: 0.639, blue: 1.0),
-                                Color(red: 0.584, green: 0.843, blue: 0.992)
-                            ]),
-                            startPoint: .bottom,
-                            endPoint: .top
+                .buttonStyle(.plain)
+                .onHover { h in
+                    withAnimation(.easeOut(duration: 0.15)) { isHoveringCancel = h }
+                }
+                .pointerCursor()
+
+                Button(action: startConversion) {
+                    HStack(spacing: 8) {
+                        WandIcon(size: 13, weight: .bold)
+                        Text("Convert Now")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        Capsule().fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(.cyan),
+                                    Color(.skyblue),
+                                ]),
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
                         )
                     )
-                )
-                .overlay(Capsule().stroke(Color(red: 0.553, green: 0.820, blue: 0.992, opacity: 0.58), lineWidth: 2))
-                .overlay(
-                    Capsule()
-                        .fill(LinearGradient(colors: [.white.opacity(0.25), .white.opacity(0.0)], startPoint: .topTrailing, endPoint: .bottomLeading))
-                        .blendMode(.screen)
-                        .allowsHitTesting(false)
-                )
-                .shadow(color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35), radius: 12, x: 0, y: 6)
-                .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .onHover { h in
-                withAnimation(.easeOut(duration: 0.15)) { isHoveringConvert = h }
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    gradient: Gradient(stops: [
+                                        .init(color: Color.white.opacity(0.85), location: 0.0),                          // Top (Brighter)
+                                        .init(color: Color(red: 0.1, green: 0.45, blue: 0.8, opacity: 0.45), location: 0.5), // Middle (Darker)
+                                        .init(color: Color(red: 0.4, green: 0.75, blue: 0.95, opacity: 0.65), location: 1.0) // Bottom (In between)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 2
+                            )
+                    )
+                    .overlay(
+                        Capsule()
+                            .fill(LinearGradient(colors: [.white.opacity(0.25), .white.opacity(0.0)], startPoint: .topTrailing, endPoint: .bottomLeading))
+                            .blendMode(.screen)
+                            .allowsHitTesting(false)
+                    )
+                    .shadow(color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35), radius: 12, x: 0, y: 6)
+                    .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
+                }
+                .buttonStyle(.plain)
+                .onHover { h in
+                    withAnimation(.easeOut(duration: 0.15)) { isHoveringConvert = h }
+                }
+                .pointerCursor()
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
@@ -261,7 +327,7 @@ struct ConvertView: View {
             VStack(spacing: 8) {
                 HStack(spacing: 10) {
                     Button(action: {
-                        store.addFiles(urls: urls)
+                        store.addFilesAsync(urls: urls)
                         dismiss()
                     }) {
                         HStack(spacing: 5) {
@@ -281,10 +347,11 @@ struct ConvertView: View {
                     .onHover { h in
                         withAnimation(.easeOut(duration: 0.15)) { isHoveringAdd = h }
                     }
+                    .pointerCursor()
 
                     Button(action: {
                         store.clearAll()
-                        store.addFiles(urls: urls)
+                        store.addFilesAsync(urls: urls)
                         dismiss()
                     }) {
                         HStack(spacing: 5) {
@@ -303,6 +370,7 @@ struct ConvertView: View {
                     .onHover { h in
                         withAnimation(.easeOut(duration: 0.15)) { isHoveringClearAdd = h }
                     }
+                    .pointerCursor()
                 }
                 .padding(.horizontal, 16)
 
@@ -325,6 +393,7 @@ struct ConvertView: View {
                 .onHover { h in
                     withAnimation(.easeOut(duration: 0.15)) { isHoveringReveal = h }
                 }
+                .pointerCursor()
             }
             .padding(.bottom, 16)
         }
@@ -361,6 +430,7 @@ struct ConvertView: View {
             .onHover { h in
                 withAnimation(.easeOut(duration: 0.15)) { isHoveringDismiss = h }
             }
+            .pointerCursor()
             .padding(.bottom, 16)
         }
     }
@@ -398,7 +468,8 @@ struct ConvertView: View {
 
     private func startConversion() {
         let outputDir = useCustomOutput ? customOutputDir : nil
-        converter.convertFiles(items: store.items, format: selectedFormat, outputDir: outputDir)
+        let imageItems = store.items.filter(\.isImage)
+        converter.convertFiles(items: imageItems, format: selectedFormat, quality: quality, outputDir: outputDir)
     }
 
     private func dismiss() {
@@ -432,3 +503,4 @@ struct GhostCardView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black.opacity(0.06), lineWidth: 0.5))
     }
 }
+

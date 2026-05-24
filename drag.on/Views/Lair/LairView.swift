@@ -8,6 +8,30 @@ struct LairView: View {
     var onConvert: () -> Void
 
     @State private var isHoveringConvert = false
+    @AppStorage("compactMode") private var compactMode = false
+    @Environment(\.openSettings) private var openSettings
+
+    // MARK: - Theme Colors
+
+    private var mainSurface: Color {
+        Color("main-surfece")
+    }
+
+    private var secondarySurface: Color {
+        Color("Secondary-surfece")
+    }
+
+    private var borderColor: Color {
+        Color("border-color")
+    }
+
+    private var content100: Color {
+        Color("content-100")
+    }
+
+    private var content200: Color {
+        Color("content-200")
+    }
 
     var body: some View {
         ZStack {
@@ -19,6 +43,20 @@ struct LairView: View {
 
             topBar
         }
+        .background(
+            RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
+                .fill(mainSurface.opacity(0.35))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
+                .stroke(borderColor, lineWidth: LairConstants.Convert.inputBorderWidth)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius))
+        .onAppear {
+            SettingsOpener.shared.register {
+                openSettings()
+            }
+        }
     }
 
     // MARK: - Dashed Container Border
@@ -26,7 +64,7 @@ struct LairView: View {
     private var dashedContainerBorder: some View {
         RoundedRectangle(cornerRadius: 14)
             .strokeBorder(
-                Color.white.opacity(0.18),
+                borderColor,
                 style: StrokeStyle(lineWidth: 1.5, dash: [9, 4])
             )
             .padding(.horizontal, 12)
@@ -43,7 +81,7 @@ struct LairView: View {
             HStack {
                 Spacer()
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.25))
+                    .fill(borderColor)
                     .frame(width: 36, height: 4)
                 Spacer()
             }
@@ -52,12 +90,14 @@ struct LairView: View {
 
             if store.items.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "tray.and.arrow.down")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(.white.opacity(0.2))
+                    Image("drag-on")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .foregroundStyle(content200)
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(content200)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 12)
@@ -78,37 +118,25 @@ struct LairView: View {
         VStack(spacing: 8) {
             FileCountLabel(items: store.items)
 
-            if store.allItemsAreImages {
+            if store.hasImages && !compactMode {
                 Button(action: onConvert) {
                     HStack(spacing: 8) {
                         WandIcon(size: 13, weight: .bold)
+                            .foregroundStyle(.white)
                         Text("Convert")
                             .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(content100)
                     }
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 32)
                     .background(
-                        ZStack {
-                            Capsule()
-                                .fill(Color.white.opacity(0.12))
-                            RadialGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.1, green: 0.55, blue: 1.0, opacity: 0.95),
-                                    Color(red: 0.3, green: 0.7, blue: 1.0, opacity: 0.15)
-                                ]),
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: 80
-                            )
-                        }
+                        Capsule()
+                            .fill(.skyblue)
                     )
-                    .clipShape(Capsule())
                     .overlay(
                         Capsule()
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1.0)
+                            .stroke(.cyan, lineWidth: 1.0)
                     )
-                    .shadow(color: Color(red: 0.0, green: 0.4, blue: 1.0).opacity(0.2), radius: 4, x: 0, y: 2)
                     .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
                 }
                 .buttonStyle(.plain)
@@ -133,15 +161,22 @@ struct LairView: View {
 
                 if !store.items.isEmpty {
                     Menu {
+                        if compactMode && store.hasImages {
+                            Button(action: onConvert) {
+                                Label("Convert Images…", systemImage: "wand.and.rays")
+                            }
+                        }
+
                         Button(role: .destructive, action: {
                             store.clearAll()
                         }) {
-                            Label("Clear Lair", systemImage: "trash")
+                            Label(LairConstants.Lair.clearActionText, systemImage: LairConstants.Lair.clearActionIcon)
                         }
                     } label: {
-                        LairCircleButton(systemName: "chevron.down", action: {})
+                        LairCircleButton(systemName: LairConstants.Lair.menuIconName)
                     }
                     .menuStyle(.button)
+                    .buttonStyle(.plain)
                     .menuIndicator(.hidden)
                     .fixedSize()
                 }
@@ -162,20 +197,20 @@ struct FileCountLabel: View {
         HStack(spacing: 4) {
             Text(countText)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(Color("content-100"))
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color("content-100"))
         }
         .frame(height: 32)
         .frame(maxWidth: .infinity)
         .background(
             Capsule()
-                .fill(Color.white.opacity(0.15))
+                .fill(Color("Secondary-surfece").opacity(LairConstants.Lair.buttonBackgroundOpacity))
         )
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.15), lineWidth: 1.0)
+                .stroke(Color("border-color"), lineWidth: 1.0)
         )
     }
 

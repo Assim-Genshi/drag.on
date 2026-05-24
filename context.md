@@ -10,47 +10,57 @@ In addition to serving as a file shelf, Drag.on includes a native **Image Conver
 
 - **OS Platform**: macOS 14.6+ (Runs as an Accessory/Agent App, hidden from the Dock by default)
 - **UI Frameworks**:
-  - **SwiftUI**: Drives the main user interface overlay (`ShelfView`), empty states, close buttons, file counts, the convert panel (`ConvertView`), and all reusable UI components.
-  - **AppKit (Cocoa)**: Manages window characteristics (`ShelfWindow` as a borderless `NSPanel`), the convert panel (`ConvertPanel` as a borderless `NSPanel`), global dragging/mouse tracking, system status items, and native multi-file dragging.
+  - **SwiftUI**: Drives the main user interface overlay (`LairView`), empty states, close buttons, file counts, the convert panel (`ConvertView`), and all reusable UI components.
+  - **AppKit (Cocoa)**: Manages window characteristics (`LairWindow` as a borderless `NSPanel`), the convert panel (`ConvertPanel` as a borderless `NSPanel`), global dragging/mouse tracking, system status items, and native multi-file dragging.
 - **Image Conversion**: Uses native macOS command-line utilities `/usr/bin/sips` and `/usr/bin/iconutil` executed asynchronously via Foundation's `Process` class.
 - **Persistence**: `UserDefaults` with JSON encoding and security-scoped bookmark data for persistent file resolution across system restarts and path movements.
+- **Concurrency & Concurrency Safety**: Developed under Swift 6 strict concurrency checks. Implements thread-safe cache transitions and asynchronous off-main-thread task groups.
 
 ---
 
 ## 📂 Codebase & Component Structure
 
 ### Core Application
-- **`drag_onApp.swift`**: Main entry point. Hooks up the `AppDelegate` and hides the application icon from the macOS Dock (`NSApplication.activationPolicy = .accessory`).
-- **`AppDelegate`**: Oversees the application lifecycle, registers the global drag monitoring timers, configures the status item menu, and manages the menu bar extras.
+- **[DragOnApp.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/App/DragOnApp.swift)**: Main entry point. Hooks up the `AppDelegate` and hides the application icon from the macOS Dock (`NSApplication.activationPolicy = .accessory`).
+- **[AppDelegate.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/App/AppDelegate.swift)**: Oversees the application lifecycle, registers the global drag monitoring timers, configures the status item menu, and manages the menu bar extras.
 
 ### Window Management & AppKit Bridge
-- **`ShelfWindow.swift`**:
+- **[LairWindow.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/LairWindow.swift)**:
   - Subclasses `NSPanel` with a borderless, non-activating, and floating configuration to stay on top of all windows.
   - Configures an `NSVisualEffectView` with `.hudWindow` materials for a modern glassmorphism aesthetic.
-  - **`DropTargetView`**: Captures incoming files (`.fileURL`) dragged into the window boundaries.
-  - **`FilePileNSView`**: AppKit view placed under the SwiftUI hosting view. Renders up to 5 visual file cards styled as a stacked pile with shadows and organic rotations.
-  - **`FileCardNSView`**: Handles mouseDown/dragged events to initiate native `NSDraggingSession` operations containing all files on the shelf. Dropping successfully clears the Lair.
-  - **`FirstMouseHostingView`**: Special `NSHostingView` subclass that enables instantaneous interaction with SwiftUI buttons on a non-key panel window.
-
-- **`ConvertPanel.swift`**:
+- **[DropTargetView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/DropTargetView.swift)**: Captures incoming files (`.fileURL`) dragged into the window boundaries.
+- **[FilePileView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/FilePileView.swift)**: AppKit view (`FilePileNSView`) placed under the SwiftUI hosting view. Renders up to 5 visual file cards styled as a stacked pile with shadows and organic rotations. Handles dropping of new files asynchronously.
+- **[FileCardView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/FileCardView.swift)**: AppKit view (`FileCardNSView`) that represents a single card on the pile. Handles mouse drag events to initiate native `NSDraggingSession` operations using `NSURL` directly. Reduces card opacity (`alphaValue = 0.3`) and ignores mouse events during transit instead of hiding the Lair window.
+- **[FirstMouseHostingView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/FirstMouseHostingView.swift)**: Special `NSHostingView` subclass that enables instantaneous interaction with SwiftUI buttons on a non-key panel window.
+- **[WindowDragHandleView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/WindowDragHandleView.swift)**: An invisible pill at the top for moving the window.
+- **[ConvertPanel.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Windows/ConvertPanel.swift)**:
   - Subclasses `NSPanel` with borderless, non-activating, and full-size-content-view configuration.
   - Dimensions: **320 × 380** pixels.
-  - **Screen-centered**: On show, calculates the center of the active screen containing the Lair window (not positioned relative to the Lair).
-  - **Focused**: Activates the application and makes itself the key window on appear, so it immediately receives keyboard and mouse focus.
+  - **Screen-centered**: On show, calculates the center of the active screen containing the Lair window.
+  - **Focused**: Activates the application and makes itself the key window on appear.
 
 ### Reusable UI Components
-- **`LairCircleButton.swift`**: A reusable circular icon button (30×30) with adaptive styling for light and dark backgrounds. Features fluid hover animations that scale up by 15% on hover with smooth opacity transitions. Used for close (`xmark`) and chevron (`chevron.down`) buttons throughout the Lair and Convert Panel.
-- **`WandIcon.swift`**: A reusable wand icon view that uses `#available(macOS 15, *)` to show `wand.and.sparkles` (SF Symbols 6) on macOS 15+ and falls back to `wand.and.rays` on older macOS versions. Used in both the Lair's Convert button and the Convert Panel's "Convert Now" button.
+- **[LairCircleButton.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Lair/LairCircleButton.swift)**: A reusable circular icon button (30×30) with adaptive styling for light and dark backgrounds. Features fluid hover animations.
+- **[WandIcon.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Components/WandIcon.swift)**: A reusable wand icon view that uses `wand.and.sparkles` on macOS 15+ and falls back to `wand.and.rays` on older versions.
+- **[CapsuleSlider.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Components/CapsuleSlider.swift)**: Custom SwiftUI slider for image compression quality adjustments.
 
 ### Interaction & Core Logic
-- **`DragMonitor.swift`**: Polls the system mouse state at 60Hz. If a drag operation is active and contains file URLs, it feeds location data to `ShakeDetector`.
-- **`ShakeDetector.swift`**: Processes mouse coordinates during drag operations to detect rapid horizontal reversals (shakes). Integrates an amplitude limit (150px) to distinguish shakes from typical window drag-outs.
-- **`ShelfStore.swift`**: Observable state container managing the list of active `FileItem`s. Resolves system bookmarks upon launch and prunes missing items. Exposes `addFile(url:)`, `addFiles(urls:)`, `removeFile(id:)`, and `clearAll()`.
-- **`ImageConverter.swift`**: Asynchronously handles image conversion workflows (WebP format and Apple `.icns` packages) using background subprocesses.
+- **[DragMonitor.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Services/DragMonitor.swift)**: Polls the system mouse state at 60Hz. Runs on a high-priority background queue (`qos: .userInteractive`) to avoid main-thread stutters from IPC calls to `NSPasteboard`.
+- **[ShakeDetector.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Services/ShakeDetector.swift)**: Processes mouse coordinates during drag operations to detect rapid horizontal reversals (shakes). Integrates an amplitude limit (150px) to distinguish shakes from typical window drag-outs.
+- **[LairStore.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Services/LairStore.swift)**: Observable store managing the list of active `FileItem`s. Resolves system bookmarks upon launch and prunes missing items. Exposes `addFile(url:)`, `addFiles(urls:)`, `addFilesAsync(urls:)`, `removeFile(id:)`, and `clearAll()`.
+- **[ImageConverter.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Services/ImageConverter.swift)**: Asynchronously handles image conversion workflows (WebP format and Apple `.icns` packages) using background subprocesses.
+- **[ThumbnailCache.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Services/ThumbnailCache.swift)**: Main-actor-isolated cache for thumbnails. Leverages `NSCache` and coordinates background `Task.detached` generation requests. Wraps non-`Sendable` `NSImage` items inside `SendableImage` to comply with Swift 6 strict concurrency checks.
 
 ### Views
-- **`ShelfView.swift`**: Main Lair overlay view. Contains the dashed container border (empty state only), top bar with close and chevron buttons, file count label, and convert button. The chevron button is wrapped in a `Menu` that provides a dropdown with a "Clear Lair" action.
-- **`ConvertView.swift`**: Standalone converter dialog content showing format selection, output path, and a premium "Convert Now" button with glass reflection effects. Success screen displays ghost cards and side-by-side "Add to Lair" / "Clear & Add" actions.
+- **[LairView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Lair/LairView.swift)**: Main Lair overlay view. Contains the dashed container border (empty state only), top bar with close and chevron buttons, file count label, and convert button.
+- **[ConvertView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Convert/ConvertView.swift)**: Standalone converter dialog content showing format selection, output path, and a premium "Convert Now" button.
+- **[SettingsView.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Views/Settings/SettingsView.swift)**: SwiftUI interface configuration for app preferences (summon sensitivity, startup behavior).
+
+### Protocols & Utilities
+- **[FileStoring.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Protocols/FileStoring.swift)**: Contract defining file storage capability.
+- **[FormatConverting.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Protocols/FormatConverting.swift)**: Contract defining format conversion capability.
+- **[LairConstants.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Utilities/LairConstants.swift)**: Coordinates, paddings, materials, and sizes for windows and panels.
+- **[Logger+App.swift](file:///Users/assimgenshi/Documents/2.coding%20project/drag.on/drag.on/Utilities/Logger+App.swift)**: Subsystem-based logger category declarations.
 
 ---
 
@@ -121,7 +131,7 @@ When a user drags an image directly from a web browser, the source path often po
   5. Cleans up temporary artifacts.
 
 ### 3. Immediate Usability
-Once converted, the new files are automatically added back into `ShelfStore` under one of two options:
+Once converted, the new files are automatically added back into `LairStore` asynchronously under one of two options:
 - **Add to Lair**: Appends the newly converted files alongside any existing files on the shelf.
 - **Clear & Add**: Clears the shelf first and then populates it exclusively with the new converted files.
 

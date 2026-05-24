@@ -6,6 +6,7 @@ protocol FileStoring: AnyObject {
     var items: [FileItem] { get }
     func addFile(url: URL)
     func addFiles(urls: [URL])
+    func addFilesAsync(urls: [URL])
     func removeFile(id: UUID)
     func clearAll()
 }

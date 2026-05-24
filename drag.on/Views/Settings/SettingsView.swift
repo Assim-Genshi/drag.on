@@ -6,12 +6,19 @@ struct SettingsView: View {
     @AppStorage("shakeSensitivity") private var shakeSensitivity: Double = 3.0
     @AppStorage("defaultFormat") private var defaultFormat: String = "WebP"
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
+    @AppStorage("compactMode") private var compactMode: Bool = false
+    @AppStorage("appTheme") private var appTheme: String = "System"
 
     var body: some View {
         TabView {
             generalTab
                 .tabItem {
                     Label("General", systemImage: "gearshape")
+                }
+
+            appearanceTab
+                .tabItem {
+                    Label("Appearance", systemImage: "paintpalette")
                 }
 
             conversionTab
@@ -24,7 +31,16 @@ struct SettingsView: View {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 400, height: 260)
+        .frame(width: 400, height: 280)
+        .preferredColorScheme(colorSchemeForTheme)
+    }
+
+    private var colorSchemeForTheme: ColorScheme? {
+        switch appTheme {
+        case "Light": return .light
+        case "Dark": return .dark
+        default: return nil
+        }
     }
 
     // MARK: - General
@@ -48,6 +64,27 @@ struct SettingsView: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceTab: some View {
+        Form {
+            Section("Window Layout") {
+                Toggle("Compact Mode", isOn: $compactMode)
+            }
+
+            Section("Theme") {
+                Picker("App Theme", selection: $appTheme) {
+                    Text("System").tag("System")
+                    Text("Light").tag("Light")
+                    Text("Dark").tag("Dark")
+                }
+                .pickerStyle(.segmented)
             }
         }
         .formStyle(.grouped)
