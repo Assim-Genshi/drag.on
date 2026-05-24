@@ -58,3 +58,5 @@ build_output.txt
 # Agent workspace / tools
 .agents/
 .gemini/
+skills-lock.json
+
