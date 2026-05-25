@@ -7,12 +7,14 @@ final class ConvertPanel: NSPanel {
 
     private let store: LairStore
     private let converter: ImageConverter
+    private let itemsToConvert: [FileItem]?
     var onDismissCallback: (() -> Void)?
     private var cancellables = Set<AnyCancellable>()
 
-    init(store: LairStore, converter: ImageConverter) {
+    init(store: LairStore, converter: ImageConverter, itemsToConvert: [FileItem]? = nil) {
         self.store = store
         self.converter = converter
+        self.itemsToConvert = itemsToConvert
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: LairConstants.Convert.width, height: LairConstants.Convert.height),
@@ -63,6 +65,7 @@ final class ConvertPanel: NSPanel {
         let convertView = ConvertView(
             store: store,
             converter: converter,
+            itemsToConvert: itemsToConvert,
             onDismiss: { [weak self] in
                 self?.dismiss()
             }

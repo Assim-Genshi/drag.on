@@ -7,6 +7,7 @@ final class LairWindow: NSPanel {
 
     private let store: LairStore
     private let converter: ImageConverter
+    private let uiState = LairUIState()
     private var hostingView: FirstMouseHostingView<LairView>?
     private var filePileView: FilePileNSView?
     private var convertPanel: ConvertPanel?
@@ -92,11 +93,19 @@ final class LairWindow: NSPanel {
         visualEffect.layer?.borderWidth = 0
         dropView.addSubview(visualEffect)
 
-        let lairView = LairView(store: store, onClose: { [weak self] in
-            self?.hide()
-        }, onConvert: { [weak self] in
-            self?.showConvertPanel()
-        })
+        let lairView = LairView(
+            store: store,
+            uiState: uiState,
+            onClose: { [weak self] in
+                self?.hide()
+            },
+            onConvert: { [weak self] in
+                self?.showConvertPanel()
+            },
+            onConvertSelected: { [weak self] selectedItems in
+                self?.showConvertPanel(itemsToConvert: selectedItems)
+            }
+        )
         let hosting = FirstMouseHostingView(rootView: lairView)
         hosting.frame = dropView.bounds
         hosting.autoresizingMask = [.width, .height]
@@ -118,20 +127,30 @@ final class LairWindow: NSPanel {
     // MARK: - Store Observation
 
     private func observeStoreChanges() {
-        // Use withObservationTracking for @Observable store
+        // Use withObservationTracking for @Observable store and uiState
         withObservationTracking {
             _ = store.items
+            _ = uiState.isManagementPanelActive
         } onChange: { [weak self] in
             DispatchQueue.main.async {
-                self?.updateFilePileFrame()
-                self?.filePileView?.reloadCards()
+                self?.handleStoreOrUIChanges()
                 self?.observeStoreChanges()
             }
         }
     }
 
+    private func handleStoreOrUIChanges() {
+        if store.items.isEmpty {
+            uiState.isManagementPanelActive = false
+            uiState.selectedItemIDs.removeAll()
+        }
+        updateWindowFrameAndPileVisibility()
+        filePileView?.reloadCards()
+    }
+
     private func updateFilePileFrame() {
         guard let pile = filePileView else { return }
+        if uiState.isManagementPanelActive { return }
         
         let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
         let isConvertShown = store.hasImages && !isCompact
@@ -164,6 +183,35 @@ final class LairWindow: NSPanel {
         }
     }
 
+    private func updateWindowFrameAndPileVisibility() {
+        let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
+        let isManagement = uiState.isManagementPanelActive
+        
+        let targetWidth: CGFloat
+        let targetHeight: CGFloat
+        
+        if isManagement {
+            targetWidth = LairConstants.Lair.managementWidth
+            targetHeight = LairConstants.Lair.managementHeight
+            filePileView?.isHidden = true
+        } else {
+            targetWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+            targetHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+            filePileView?.isHidden = false
+        }
+        
+        let currentFrame = frame
+        let newX = currentFrame.midX - targetWidth / 2
+        let newY = currentFrame.maxY - targetHeight
+        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
+        
+        if currentFrame != newFrame {
+            setFrame(newFrame, display: true, animate: true)
+        }
+        
+        updateFilePileFrame()
+    }
+
     // MARK: - Show / Hide
 
     func show(near point: NSPoint, isShake: Bool = false) {
@@ -172,8 +220,18 @@ final class LairWindow: NSPanel {
         let screenFrame = screen.visibleFrame
 
         let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
-        let panelWidth: CGFloat = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
-        let panelHeight: CGFloat = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+        let isManagement = uiState.isManagementPanelActive
+        
+        let panelWidth: CGFloat
+        let panelHeight: CGFloat
+        
+        if isManagement {
+            panelWidth = LairConstants.Lair.managementWidth
+            panelHeight = LairConstants.Lair.managementHeight
+        } else {
+            panelWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
+            panelHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
+        }
 
         var x = point.x - panelWidth / 2
         var y = point.y - panelHeight - 20
@@ -206,17 +264,7 @@ final class LairWindow: NSPanel {
         let currentCompact = UserDefaults.standard.bool(forKey: "compactMode")
         guard currentCompact != lastCompactModeValue else { return }
         lastCompactModeValue = currentCompact
-        
-        let targetWidth = currentCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
-        let targetHeight = currentCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
-        
-        let currentFrame = frame
-        let newX = currentFrame.midX - targetWidth / 2
-        let newY = currentFrame.maxY - targetHeight
-        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
-        
-        setFrame(newFrame, display: true, animate: true)
-        updateFilePileFrame()
+        updateWindowFrameAndPileVisibility()
     }
 
     private func applyTheme() {
@@ -271,10 +319,8 @@ final class LairWindow: NSPanel {
 
     // MARK: - Convert Panel
 
-    func showConvertPanel() {
-        if convertPanel == nil {
-            convertPanel = ConvertPanel(store: store, converter: converter)
-        }
+    func showConvertPanel(itemsToConvert: [FileItem]? = nil) {
+        convertPanel = ConvertPanel(store: store, converter: converter, itemsToConvert: itemsToConvert)
         
         let lairFrame = self.frame
         

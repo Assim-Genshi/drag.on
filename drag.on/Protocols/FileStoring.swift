@@ -8,5 +8,6 @@ protocol FileStoring: AnyObject {
     func addFiles(urls: [URL])
     func addFilesAsync(urls: [URL])
     func removeFile(id: UUID)
+    func replaceFile(id: UUID, with newURL: URL)
     func clearAll()
 }

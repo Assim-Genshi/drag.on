@@ -279,4 +279,45 @@ final class FileCardNSView: NSView, NSDraggingSource {
             self.animator().alphaValue = 1.0
         }
     }
+
+    // MARK: - Contextual Menu
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        
+        let removeItem = NSMenuItem(
+            title: LairConstants.Lair.removeFromLairActionText,
+            action: #selector(removeFromLairCommand(_:)),
+            keyEquivalent: ""
+        )
+        removeItem.target = self
+        if let removeIcon = NSImage(systemSymbolName: LairConstants.Lair.removeFromLairActionIcon, accessibilityDescription: nil) {
+            removeItem.image = removeIcon
+        }
+        removeItem.isEnabled = true
+        menu.addItem(removeItem)
+        
+        let clearItem = NSMenuItem(
+            title: LairConstants.Lair.clearActionText,
+            action: #selector(clearLairCommand(_:)),
+            keyEquivalent: ""
+        )
+        clearItem.target = self
+        if let clearIcon = NSImage(systemSymbolName: LairConstants.Lair.clearActionIcon, accessibilityDescription: nil) {
+            clearItem.image = clearIcon
+        }
+        clearItem.isEnabled = true
+        menu.addItem(clearItem)
+        
+        return menu
+    }
+
+    @objc private func removeFromLairCommand(_ sender: Any) {
+        store.removeFile(id: item.id)
+    }
+
+    @objc private func clearLairCommand(_ sender: Any) {
+        store.clearAll()
+    }
 }

@@ -68,6 +68,40 @@ struct LairConstants {
         static let clearActionText = "Clear Lair"
         static let clearActionIcon = "trash"
         
+        // Context Menu Action Configuration
+        static let openActionText = "Open"
+        static let openActionIcon = "arrow.up.right.square"
+        
+        static let openWithActionText = "Open With"
+        static let openWithActionIcon = "arrow.up.right.circle"
+        
+        static let revealInFinderActionText = "Reveal in Finder"
+        static let revealInFinderActionIcon = "magnifyingglass"
+        
+        static let copyPathActionText = "Copy Path"
+        static let copyPathActionIcon = "doc.on.doc"
+        
+        static let renameActionText = "Rename…"
+        static let renameActionIcon = "pencil"
+        
+        static let duplicateActionText = "Duplicate"
+        static let duplicateActionIcon = "plus.square.on.square"
+        
+        static let compressZipActionText = "Compress ZIP"
+        static let compressZipActionIcon = "archivebox"
+        
+        static let convertActionText = "Convert…"
+        static let convertActionIcon = "wand.and.sparkles"
+        
+        static let openInTerminalActionText = "Open in Terminal"
+        static let openInTerminalActionIcon = "terminal"
+        
+        static let openInFinderActionText = "Open in Finder"
+        static let openInFinderActionIcon = "folder"
+        
+        static let removeFromLairActionText = "Remove from Lair"
+        static let removeFromLairActionIcon = "minus.circle"
+        
         // Button Opacity Configurations
         static let buttonBackgroundOpacity: Double = 0.3
         static let buttonBorderOpacity: Double = 0.3
@@ -77,6 +111,10 @@ struct LairConstants {
         static let compactHeight: CGFloat = 220
         static let filePileYCompact: CGFloat = 64
         static let filePileHeightCompact: CGFloat = 120
+
+        // Management Panel Configuration
+        static let managementWidth: CGFloat = 520
+        static let managementHeight: CGFloat = 300
     }
     
     struct Convert {

@@ -89,6 +89,15 @@ final class LairStore: FileStoring {
         saveItems()
     }
 
+    /// Replace a file item's URL in the store (e.g. after rename).
+    func replaceFile(id: UUID, with newURL: URL) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        if let newItem = FileItem.from(url: newURL) {
+            items[index] = newItem
+            saveItems()
+        }
+    }
+
     /// Clear all items from the lair.
     func clearAll() {
         items.removeAll()

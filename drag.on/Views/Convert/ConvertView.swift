@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ConvertView: View {
     var store: LairStore
     var converter: ImageConverter
+    var itemsToConvert: [FileItem]? = nil
     var onDismiss: () -> Void
 
     @AppStorage("defaultFormat") private var defaultFormat: String = "WebP"
@@ -43,6 +44,10 @@ struct ConvertView: View {
 
     private var cardBorder: Color {
         Color("border-color")
+    }
+
+    private var imagesToConvert: [FileItem] {
+        (itemsToConvert ?? store.items).filter(\.isImage)
     }
 
     var body: some View {
@@ -86,7 +91,7 @@ struct ConvertView: View {
             if let savedFormat = ImageFormat.allCases.first(where: { $0.rawValue == defaultFormat }) {
                 selectedFormat = savedFormat
             }
-            let imageItems = store.items.filter(\.isImage)
+            let imageItems = imagesToConvert
             converter.previewOutputDirectory(for: imageItems, customDir: nil)
         }
     }
@@ -99,7 +104,7 @@ struct ConvertView: View {
                 Text("Convert")
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(primaryTextColor)
-                let imageCount = store.items.filter(\.isImage).count
+                let imageCount = imagesToConvert.count
                 Text("\(imageCount) image\(imageCount == 1 ? "" : "s") selected")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(secondaryTextColor)
@@ -535,7 +540,7 @@ struct ConvertView: View {
 
     private func startConversion() {
         let outputDir = useCustomOutput ? customOutputDir : nil
-        let imageItems = store.items.filter(\.isImage)
+        let imageItems = imagesToConvert
         converter.convertFiles(items: imageItems, format: selectedFormat, quality: quality, outputDir: outputDir)
     }
 

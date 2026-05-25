@@ -13,6 +13,12 @@
       "skillPath": "skills/swift-mcp-server-generator/SKILL.md",
       "computedHash": "3fd2caf5c3da6b0fcd9d1e094241b1c050db0768da83e3119ce683489fdfee1d"
     },
+    "swiftui-animation": {
+      "source": "dpearson2699/swift-ios-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swiftui-animation/SKILL.md",
+      "computedHash": "c95ff235afaaa2df0ae2b16305a3c2233851d2f50d375d5c412270ad0980d60d"
+    },
     "swiftui-expert-skill": {
       "source": "avdlee/swiftui-agent-skill",
       "sourceType": "github",

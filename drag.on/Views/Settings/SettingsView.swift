@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("compactMode") private var compactMode: Bool = false
     @AppStorage("appTheme") private var appTheme: String = "System"
+    @AppStorage("preferredTerminal") private var preferredTerminal: String = "Terminal.app"
 
     var body: some View {
         TabView {
@@ -52,6 +53,14 @@ struct SettingsView: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         updateLoginItem(enabled: newValue)
                     }
+            }
+
+            Section("Terminal") {
+                Picker("Preferred Terminal", selection: $preferredTerminal) {
+                    Text("Terminal.app").tag("Terminal.app")
+                    Text("iTerm2").tag("iTerm2")
+                    Text("Warp").tag("Warp")
+                }
             }
 
             Section("Shake Gesture") {
