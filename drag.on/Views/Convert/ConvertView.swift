@@ -20,7 +20,6 @@ struct ConvertView: View {
     @State private var isHoveringDismiss = false
 
     @Environment(\.colorScheme) private var colorScheme
-
     // MARK: - Theme Colors
 
     private var primaryTextColor: Color {
