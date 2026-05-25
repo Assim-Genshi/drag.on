@@ -6,7 +6,7 @@ import os
 final class ShakeDetector {
 
     /// Called when a shake gesture is detected, with the screen location.
-    var onShakeDetected: ((NSPoint) -> Void)?
+    var onShakeDetected: (@Sendable @MainActor (NSPoint) -> Void)?
 
     // MARK: - Configuration
 
@@ -35,9 +35,14 @@ final class ShakeDetector {
 
     private var samples: [Sample] = []
     private let maxSamples = 40
-    private var lastShakeTime: TimeInterval = 0
+    private let lastShakeTimeLock = OSAllocatedUnfairLock(initialState: TimeInterval(0))
 
     // MARK: - Public
+
+    /// Manually trigger or extend the shake cooldown.
+    func startCooldown() {
+        lastShakeTimeLock.withLock { $0 = ProcessInfo.processInfo.systemUptime }
+    }
 
     /// Record a mouse position sample. Call at a high frequency (~60Hz).
     func recordMousePosition(_ point: NSPoint) {
@@ -65,7 +70,8 @@ final class ShakeDetector {
         guard samples.count >= 4 else { return }
 
         // Cooldown check
-        if time - lastShakeTime < cooldownInterval { return }
+        let lastShake = lastShakeTimeLock.withLock { $0 }
+        if time - lastShake < cooldownInterval { return }
 
         // Amplitude check — reject if the mouse traveled too far horizontally
         let xValues = samples.map { $0.position.x }
@@ -94,9 +100,13 @@ final class ShakeDetector {
         }
 
         if reversals >= requiredReversals {
-            lastShakeTime = time
+            lastShakeTimeLock.withLock { $0 = time }
             samples.removeAll()
-            onShakeDetected?(point)
+            if let callback = onShakeDetected {
+                Task { @MainActor in
+                    callback(point)
+                }
+            }
         }
     }
 }

@@ -5,6 +5,8 @@ extension Logger {
     static let lairStore = Logger(subsystem: "com.yokai.drag-on", category: "LairStore")
     /// Logger for image conversion operations.
     static let converter = Logger(subsystem: "com.yokai.drag-on", category: "ImageConverter")
+    /// Logger for conversion queue operations.
+    static let conversionQueue = Logger(subsystem: "com.yokai.drag-on", category: "ConversionQueue")
     /// Logger for drag monitoring operations.
     static let dragMonitor = Logger(subsystem: "com.yokai.drag-on", category: "DragMonitor")
     /// Logger for file item operations.
@@ -12,3 +14,4 @@ extension Logger {
     /// Logger for thumbnail cache operations.
     static let thumbnailCache = Logger(subsystem: "com.yokai.drag-on", category: "ThumbnailCache")
 }
+

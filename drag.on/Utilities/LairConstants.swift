@@ -1,17 +1,45 @@
 import Foundation
 import Cocoa
 
-/// Supported image conversion formats.
+/// Supported image conversion output formats.
 enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
     case webp = "WebP"
+    case png  = "PNG"
+    case jpg  = "JPG"
     case icns = "ICNS"
+    case ico  = "ICO"
+    case pdf  = "PDF"
 
     var id: String { rawValue }
 
     var fileExtension: String {
         switch self {
         case .webp: return "webp"
+        case .png:  return "png"
+        case .jpg:  return "jpg"
         case .icns: return "icns"
+        case .ico:  return "ico"
+        case .pdf:  return "pdf"
+        }
+    }
+
+    /// Whether this format supports a quality slider (lossy formats only).
+    var supportsQuality: Bool {
+        switch self {
+        case .webp, .jpg: return true
+        default: return false
+        }
+    }
+
+    /// Human-readable description for the format picker.
+    var formatDescription: String {
+        switch self {
+        case .webp: return "Modern web format with excellent compression"
+        case .png:  return "Lossless format with transparency support"
+        case .jpg:  return "Universal photo format, smaller files"
+        case .icns: return "Apple icon package for macOS apps"
+        case .ico:  return "Windows icon format, multi-size"
+        case .pdf:  return "Document format, vector-preserving"
         }
     }
 }
@@ -47,7 +75,7 @@ struct LairConstants {
         // Compact Mode Configuration
         static let compactWidth: CGFloat = 220
         static let compactHeight: CGFloat = 220
-        static let filePileYCompact: CGFloat = 52
+        static let filePileYCompact: CGFloat = 64
         static let filePileHeightCompact: CGFloat = 120
     }
     

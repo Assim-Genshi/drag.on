@@ -16,6 +16,7 @@ final class DropTargetView: NSView {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { true }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard sender.draggingPasteboard.canReadObject(
@@ -24,6 +25,9 @@ final class DropTargetView: NSView {
         ) else {
             return []
         }
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.isExternalDragActive = true
+        }
         return .copy
     }
 
@@ -31,15 +35,25 @@ final class DropTargetView: NSView {
         return .copy
     }
 
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.isExternalDragActive = false
+        }
+    }
+
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let urls = sender.draggingPasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] else {
+            if let lairWindow = self.window as? LairWindow {
+                lairWindow.isExternalDragActive = false
+            }
             return false
         }
         if let lairWindow = self.window as? LairWindow {
             lairWindow.cancelShakeAutoClose()
+            lairWindow.isExternalDragActive = false
         }
         store.addFilesAsync(urls: urls)
         return true

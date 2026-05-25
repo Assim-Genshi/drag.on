@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - ConvertView (Converter Dialog Content)
 
@@ -7,6 +8,7 @@ struct ConvertView: View {
     var converter: ImageConverter
     var onDismiss: () -> Void
 
+    @AppStorage("defaultFormat") private var defaultFormat: String = "WebP"
     @State private var selectedFormat: ImageFormat = .webp
     @State private var customOutputDir: URL? = nil
     @State private var useCustomOutput = false
@@ -20,6 +22,7 @@ struct ConvertView: View {
     @State private var isHoveringDismiss = false
 
     @Environment(\.colorScheme) private var colorScheme
+
     // MARK: - Theme Colors
 
     private var primaryTextColor: Color {
@@ -41,17 +44,18 @@ struct ConvertView: View {
     private var cardBorder: Color {
         Color("border-color")
     }
+
     var body: some View {
         Group {
             switch converter.state {
-            case .idle:
+            case .idle, .validating:
                 converterSettings
-            case .converting(let current, let index, let total):
-                convertingProgress(current: current, index: index, total: total)
-            case .success(let urls):
-                conversionSuccess(urls: urls)
-            case .failed(let message):
-                conversionFailed(message: message)
+            case .converting(let progress):
+                convertingProgress(progress: progress)
+            case .success(let results):
+                conversionSuccess(results: results)
+            case .failed(let message, let partialResults):
+                conversionFailed(message: message, partialResults: partialResults)
             }
         }
         .frame(width: LairConstants.Convert.width, height: LairConstants.Convert.height)
@@ -78,6 +82,10 @@ struct ConvertView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius))
         .onAppear {
+            // Wire up the default format from settings
+            if let savedFormat = ImageFormat.allCases.first(where: { $0.rawValue == defaultFormat }) {
+                selectedFormat = savedFormat
+            }
             let imageItems = store.items.filter(\.isImage)
             converter.previewOutputDirectory(for: imageItems, customDir: nil)
         }
@@ -100,6 +108,7 @@ struct ConvertView: View {
             .padding(.bottom, 12)
 
             VStack(alignment: .leading, spacing: 12) {
+                // Format selector
                 VStack(alignment: .leading, spacing: 4) {
                     Text("FORMAT")
                         .font(.system(size: 10, weight: .bold))
@@ -108,7 +117,9 @@ struct ConvertView: View {
                     Menu {
                         ForEach(ImageFormat.allCases) { format in
                             Button(action: { selectedFormat = format }) {
-                                Text(format.rawValue)
+                                VStack(alignment: .leading) {
+                                    Text(format.rawValue)
+                                }
                             }
                         }
                     } label: {
@@ -116,9 +127,15 @@ struct ConvertView: View {
                             Image(systemName: "doc.badge.gearshape")
                                 .font(.system(size: 12))
                                 .foregroundStyle(accentColor)
-                            Text(selectedFormat.rawValue)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(primaryTextColor)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(selectedFormat.rawValue)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(primaryTextColor)
+                                Text(selectedFormat.formatDescription)
+                                    .font(.system(size: 8, weight: .medium))
+                                    .foregroundStyle(secondaryTextColor)
+                                    .lineLimit(1)
+                            }
                             Spacer()
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 10))
@@ -133,28 +150,33 @@ struct ConvertView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .pointerCursor()
 
-                    Text("Select the target file type for compression")
+                    Text("Select the target file type for conversion")
                         .font(.system(size: 9))
                         .foregroundStyle(secondaryTextColor)
                         .padding(.top, 2)
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    CapsuleSlider(
-                        value: $quality,
-                        primaryTextColor: primaryTextColor,
-                        secondaryTextColor: secondaryTextColor,
-                        cardBackground: cardBackground,
-                        cardBorder: cardBorder
-                    )
-                    .pointerCursor()
+                // Quality slider — only for lossy formats
+                if selectedFormat.supportsQuality {
+                    VStack(alignment: .leading, spacing: 4) {
+                        CapsuleSlider(
+                            value: $quality,
+                            primaryTextColor: primaryTextColor,
+                            secondaryTextColor: secondaryTextColor,
+                            cardBackground: cardBackground,
+                            cardBorder: cardBorder
+                        )
+                        .pointerCursor()
 
-                    Text("Balance between file size and image fidelity")
-                        .font(.system(size: 9))
-                        .foregroundStyle(secondaryTextColor)
-                        .padding(.top, 2)
+                        Text("Balance between file size and image fidelity")
+                            .font(.system(size: 9))
+                            .foregroundStyle(secondaryTextColor)
+                            .padding(.top, 2)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
+                // Output location
                 VStack(alignment: .leading, spacing: 4) {
                     Text("OUTPUT LOCATION")
                         .font(.system(size: 10, weight: .bold))
@@ -191,6 +213,7 @@ struct ConvertView: View {
                 }
             }
             .padding(.horizontal, 16)
+            .animation(.easeInOut(duration: 0.2), value: selectedFormat.supportsQuality)
 
             Spacer()
 
@@ -228,7 +251,7 @@ struct ConvertView: View {
                         Capsule().fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(.cyan),
+                                    Color(.cyanDream),
                                     Color(.skyblue),
                                 ]),
                                 startPoint: .bottom,
@@ -241,9 +264,9 @@ struct ConvertView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     gradient: Gradient(stops: [
-                                        .init(color: Color.white.opacity(0.85), location: 0.0),                          // Top (Brighter)
-                                        .init(color: Color(red: 0.1, green: 0.45, blue: 0.8, opacity: 0.45), location: 0.5), // Middle (Darker)
-                                        .init(color: Color(red: 0.4, green: 0.75, blue: 0.95, opacity: 0.65), location: 1.0) // Bottom (In between)
+                                        .init(color: Color.white.opacity(0.85), location: 0.0),
+                                        .init(color: Color(red: 0.1, green: 0.45, blue: 0.8, opacity: 0.45), location: 0.5),
+                                        .init(color: Color(red: 0.4, green: 0.75, blue: 0.95, opacity: 0.65), location: 1.0)
                                     ]),
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -273,31 +296,66 @@ struct ConvertView: View {
 
     // MARK: - Progress
 
-    private func convertingProgress(current: String, index: Int, total: Int) -> some View {
+    private func convertingProgress(progress: ConversionProgress) -> some View {
         VStack(spacing: 16) {
             Spacer()
-            ProgressView()
-                .progressViewStyle(.circular)
-                .scaleEffect(1.0)
-            Text("Converting...")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(primaryTextColor)
-            Text(current)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(secondaryTextColor)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.horizontal, 24)
-            Text("\(index + 1) of \(total)")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(secondaryTextColor.opacity(0.7))
+
+            // Circular progress ring
+            ZStack {
+                Circle()
+                    .stroke(accentColor.opacity(0.15), lineWidth: 4)
+                    .frame(width: 52, height: 52)
+
+                Circle()
+                    .trim(from: 0, to: progress.fractionComplete)
+                    .stroke(accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 52, height: 52)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.3), value: progress.fractionComplete)
+
+                Text("\(Int(progress.fractionComplete * 100))%")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(primaryTextColor)
+            }
+
+            VStack(spacing: 4) {
+                Text(progress.phase.rawValue)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(primaryTextColor)
+
+                Text(progress.currentFileName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 24)
+
+                Text("\(progress.currentIndex + 1) of \(progress.totalCount)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(secondaryTextColor.opacity(0.7))
+            }
+
             Spacer()
+
+            Button(action: {
+                converter.cancelConversion()
+            }) {
+                Text("Cancel")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(secondaryTextColor)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(cardBackground))
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+            .padding(.bottom, 16)
         }
     }
 
     // MARK: - Success
 
-    private func conversionSuccess(urls: [URL]) -> some View {
+    private func conversionSuccess(results: [ConversionResult]) -> some View {
         VStack(spacing: 10) {
             Spacer().frame(height: 20)
             Image(systemName: "checkmark.circle.fill")
@@ -306,14 +364,14 @@ struct ConvertView: View {
             Text("Conversion Complete")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(primaryTextColor)
-            Text("\(urls.count) file\(urls.count == 1 ? "" : "s") created")
+            Text("\(results.count) file\(results.count == 1 ? "" : "s") created")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(secondaryTextColor)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(urls, id: \.absoluteString) { url in
-                        GhostCardView(url: url)
+                    ForEach(results, id: \.convertedURL.absoluteString) { result in
+                        GhostCardView(url: result.convertedURL)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -326,6 +384,7 @@ struct ConvertView: View {
             VStack(spacing: 8) {
                 HStack(spacing: 10) {
                     Button(action: {
+                        let urls = results.map(\.convertedURL)
                         store.addFilesAsync(urls: urls)
                         dismiss()
                     }) {
@@ -349,6 +408,7 @@ struct ConvertView: View {
                     .pointerCursor()
 
                     Button(action: {
+                        let urls = results.map(\.convertedURL)
                         store.clearAll()
                         store.addFilesAsync(urls: urls)
                         dismiss()
@@ -374,6 +434,7 @@ struct ConvertView: View {
                 .padding(.horizontal, 16)
 
                 Button(action: {
+                    let urls = results.map(\.convertedURL)
                     NSWorkspace.shared.activateFileViewerSelecting(urls)
                 }) {
                     HStack(spacing: 4) {
@@ -400,7 +461,7 @@ struct ConvertView: View {
 
     // MARK: - Failure
 
-    private func conversionFailed(message: String) -> some View {
+    private func conversionFailed(message: String, partialResults: [ConversionResult]) -> some View {
         VStack(spacing: 14) {
             Spacer()
             Image(systemName: "exclamationmark.triangle.fill")
@@ -413,8 +474,15 @@ struct ConvertView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(secondaryTextColor)
                 .multilineTextAlignment(.center)
-                .lineLimit(3)
+                .lineLimit(4)
                 .padding(.horizontal, 24)
+
+            if !partialResults.isEmpty {
+                Text("\(partialResults.count) file\(partialResults.count == 1 ? "" : "s") succeeded")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(accentColor)
+            }
+
             Spacer()
             Button(action: dismiss) {
                 Text("Dismiss")
@@ -477,6 +545,52 @@ struct ConvertView: View {
     }
 }
 
+// MARK: - Async Thumbnail View
+
+struct AsyncThumbnailView: View {
+    let url: URL
+    let size: CGSize
+
+    @State private var image: NSImage? = nil
+
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(nsImage: image)
+                    .resizable()
+            } else {
+                Image(nsImage: placeholderIcon)
+                    .resizable()
+            }
+        }
+        .task(id: url) {
+            let isImage = SupportedImageExtensions.isImage(fileName: url.lastPathComponent)
+            
+            // Check cache synchronously first to avoid flash of placeholder
+            if let cached = ThumbnailCache.shared.cachedImage(for: url.path) {
+                self.image = cached
+            } else {
+                self.image = await ThumbnailCache.shared.thumbnail(
+                    for: url.path,
+                    url: url,
+                    size: size,
+                    isImage: isImage
+                )
+            }
+        }
+    }
+
+    private var placeholderIcon: NSImage {
+        if FileManager.default.fileExists(atPath: url.path) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        if let type = UTType(filenameExtension: url.pathExtension) {
+            return NSWorkspace.shared.icon(for: type)
+        }
+        return NSWorkspace.shared.icon(for: .data)
+    }
+}
+
 // MARK: - Ghost Card
 
 struct GhostCardView: View {
@@ -484,9 +598,8 @@ struct GhostCardView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-                .resizable()
-                .interpolation(.high)
+            AsyncThumbnailView(url: url, size: CGSize(width: 84, height: 84))
+                .aspectRatio(contentMode: .fit)
                 .frame(width: 42, height: 42)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .shadow(color: .black.opacity(0.15), radius: 1.5, y: 1)
@@ -502,4 +615,3 @@ struct GhostCardView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black.opacity(0.06), lineWidth: 0.5))
     }
 }
-

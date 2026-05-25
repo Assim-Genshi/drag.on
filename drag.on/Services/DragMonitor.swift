@@ -9,7 +9,7 @@ import os
 final class DragMonitor {
 
     let shakeDetector = ShakeDetector()
-    var onDragEnded: (() -> Void)?
+    var onDragEnded: (@Sendable @MainActor () -> Void)?
 
     private var pollTimer: DispatchSourceTimer?
     private var wasButtonDown = false
@@ -60,7 +60,11 @@ final class DragMonitor {
             }
         } else if wasButtonDown {
             shakeDetector.reset()
-            onDragEnded?()
+            if let callback = onDragEnded {
+                Task { @MainActor in
+                    callback()
+                }
+            }
         }
 
         wasButtonDown = isButtonDown

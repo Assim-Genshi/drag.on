@@ -135,7 +135,7 @@ struct LairView: View {
                     )
                     .overlay(
                         Capsule()
-                            .stroke(.cyan, lineWidth: 1.0)
+                            .stroke(.cyanDream, lineWidth: 1.0)
                     )
                     .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
                 }

@@ -22,6 +22,10 @@ xcuserdata/
 *.xsyncdir
 *.sharedparameter
 
+# App-specific build/cache paths
+build_derived/
+.cursor/
+
 # macOS
 #
 .DS_Store

@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
  
         lairWindow = LairWindow(store: store, converter: converter)
+        lairWindow?.onDidHide = { [weak self] in
+            self?.dragMonitor.shakeDetector.startCooldown()
+        }
  
         // Apply saved shake sensitivity initially
         updateSensitivity()
@@ -30,15 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
  
         dragMonitor.shakeDetector.onShakeDetected = { [weak self] location in
-            DispatchQueue.main.async {
-                self?.lairWindow?.show(near: location, isShake: true)
-            }
+            guard let self = self, let window = self.lairWindow else { return }
+            guard !window.isVisible && !window.isConvertPanelVisible else { return }
+            window.show(near: location, isShake: true)
         }
  
         dragMonitor.onDragEnded = { [weak self] in
-            DispatchQueue.main.async {
-                self?.lairWindow?.handleDragEnded()
-            }
+            self?.lairWindow?.handleDragEnded()
         }
  
         dragMonitor.startMonitoring()

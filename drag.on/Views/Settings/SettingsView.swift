@@ -101,7 +101,6 @@ struct SettingsView: View {
                         Text(format.rawValue).tag(format.rawValue)
                     }
                 }
-                .pickerStyle(.segmented)
             }
         }
         .formStyle(.grouped)

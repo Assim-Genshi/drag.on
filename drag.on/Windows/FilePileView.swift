@@ -6,6 +6,7 @@ final class FilePileNSView: NSView, NSDraggingSource {
     private let store: LairStore
     private var cardViews: [FileCardNSView] = []
     private var needsReload = false
+    var isReloadPending = false
 
     init(store: LairStore) {
         self.store = store
@@ -28,6 +29,9 @@ final class FilePileNSView: NSView, NSDraggingSource {
         ) else {
             return []
         }
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.isExternalDragActive = true
+        }
         return .copy
     }
 
@@ -35,30 +39,80 @@ final class FilePileNSView: NSView, NSDraggingSource {
         return .copy
     }
 
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.isExternalDragActive = false
+        }
+    }
+
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard let urls = sender.draggingPasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] else {
+            if let lairWindow = self.window as? LairWindow {
+                lairWindow.isExternalDragActive = false
+            }
             return false
         }
         if let lairWindow = self.window as? LairWindow {
             lairWindow.cancelShakeAutoClose()
+            lairWindow.isExternalDragActive = false
         }
         store.addFilesAsync(urls: urls)
         return true
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { true }
 
     // MARK: - Card Management
 
     func reloadCards() {
-        cardViews.forEach { $0.removeFromSuperview() }
-        cardViews.removeAll()
-
+        if let lairWindow = self.window as? LairWindow, lairWindow.isInternalDragActive {
+            isReloadPending = true
+            return
+        }
+        
+        isReloadPending = false
         let items = Array(store.items.suffix(5))
-        guard !items.isEmpty else { return }
+        
+        // 1. Remove obsolete cards
+        cardViews.forEach { card in
+            if !items.contains(where: { $0.id == card.item.id }) {
+                card.removeFromSuperview()
+            }
+        }
+
+        // 2. Build recycled and new card list, ordering them so newest is on top
+        var newCardViews: [FileCardNSView] = []
+        for item in items {
+            if let existingCard = cardViews.first(where: { $0.item.id == item.id }) {
+                // Moving it to the end of subviews array ensures it's drawn on top in order
+                addSubview(existingCard)
+                newCardViews.append(existingCard)
+            } else {
+                let card = FileCardNSView(item: item, store: store)
+                addSubview(card)
+                card.loadThumbnailAsync()
+                newCardViews.append(card)
+            }
+        }
+        cardViews = newCardViews
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        
+        // Only reload if flagged — avoid redundant reloads on every layout pass
+        if needsReload {
+            needsReload = false
+            reloadCards()
+        }
+
+        let itemsCount = cardViews.count
+        guard itemsCount > 0 else { return }
 
         let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
         let isConvertShown = store.hasImages && !isCompact
@@ -75,9 +129,8 @@ final class FilePileNSView: NSView, NSDraggingSource {
         let padding: CGFloat = 5
         let rotations: [Double] = [0, -5, 4, -3, 6]
 
-        for (index, item) in items.enumerated() {
-            let card = FileCardNSView(item: item, store: store)
-            let offset = items.count - 1 - index
+        for (index, card) in cardViews.enumerated() {
+            let offset = itemsCount - 1 - index
 
             let thumb = card.cachedThumbnail
             let thumbSize = thumb.size
@@ -109,7 +162,7 @@ final class FilePileNSView: NSView, NSDraggingSource {
             card.frameCenterRotation = rot
 
             card.shadow = NSShadow()
-            if item.isImage {
+            if card.item.isImage {
                 card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.45).cgColor
                 card.layer?.shadowRadius = 8
                 card.layer?.shadowOffset = CGSize(width: 0, height: -3)
@@ -117,21 +170,6 @@ final class FilePileNSView: NSView, NSDraggingSource {
             } else {
                 card.layer?.shadowOpacity = 0
             }
-
-            addSubview(card)
-            cardViews.append(card)
-
-            // Fire async thumbnail loading — non-blocking
-            card.loadThumbnailAsync()
-        }
-    }
-
-    override func layout() {
-        super.layout()
-        // Only reload if flagged — avoid redundant reloads on every layout pass
-        if needsReload {
-            needsReload = false
-            reloadCards()
         }
     }
 

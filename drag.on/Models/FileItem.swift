@@ -64,8 +64,12 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     /// Get the file icon from the workspace (fast, no I/O).
     @MainActor
     func icon() -> NSImage {
-        if let url = resolveURL() {
+        if let url = resolveURL(), FileManager.default.fileExists(atPath: url.path) {
             return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        let pathExtension = (fileName as NSString).pathExtension
+        if let type = UTType(filenameExtension: pathExtension) {
+            return NSWorkspace.shared.icon(for: type)
         }
         return NSWorkspace.shared.icon(for: .data)
     }
@@ -74,8 +78,12 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     /// Uses the system icon which is always fast and cached by the OS.
     @MainActor
     func placeholderImage() -> NSImage {
-        if let url = resolveURL() {
+        if let url = resolveURL(), FileManager.default.fileExists(atPath: url.path) {
             return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        let pathExtension = (fileName as NSString).pathExtension
+        if let type = UTType(filenameExtension: pathExtension) {
+            return NSWorkspace.shared.icon(for: type)
         }
         return NSWorkspace.shared.icon(for: .data)
     }
@@ -84,8 +92,12 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     /// Prefer `thumbnailAsync()` for display in views.
     @MainActor
     func thumbnail() -> NSImage {
+        if let cached = ThumbnailCache.shared.cachedImage(for: filePath) {
+            return cached
+        }
+
         guard let url = resolveURL() else {
-            return NSWorkspace.shared.icon(for: .data)
+            return placeholderImage()
         }
 
         if isImage {
@@ -112,7 +124,7 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
             }
         }
 
-        return NSWorkspace.shared.icon(forFile: url.path)
+        return placeholderImage()
     }
 
     /// Async thumbnail generation routed through `ThumbnailCache`.
@@ -120,11 +132,11 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     @MainActor
     func thumbnailAsync(size: CGSize = CGSize(width: 180, height: 180)) async -> NSImage {
         guard let url = resolveURL() else {
-            return NSWorkspace.shared.icon(for: .data)
+            return placeholderImage()
         }
 
         return await ThumbnailCache.shared.thumbnail(
-            for: id,
+            for: filePath,
             url: url,
             size: size,
             isImage: isImage

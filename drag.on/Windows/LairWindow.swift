@@ -14,6 +14,23 @@ final class LairWindow: NSPanel {
     private var lastCompactModeValue: Bool = false
     private var wasShownByShake: Bool = false
 
+    var onDidHide: (() -> Void)?
+    var isExternalDragActive: Bool = false
+    var isInternalDragActive: Bool = false {
+        didSet {
+            if !isInternalDragActive {
+                if let pile = filePileView, pile.isReloadPending {
+                    pile.reloadCards()
+                }
+            }
+        }
+    }
+    private var activeDraggingCards = Set<FileCardNSView>()
+
+    var isConvertPanelVisible: Bool {
+        convertPanel?.isVisible ?? false
+    }
+
     init(store: LairStore, converter: ImageConverter) {
         self.store = store
         self.converter = converter
@@ -47,7 +64,7 @@ final class LairWindow: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        isMovableByWindowBackground = false
+        isMovableByWindowBackground = true
         animationBehavior = .utilityWindow
     }
 
@@ -95,16 +112,7 @@ final class LairWindow: NSPanel {
         self.filePileView = pile
         updateFilePileFrame()
 
-        let pillWidth: CGFloat = 60
-        let handleView = WindowDragHandleView(frame: .zero)
-        handleView.frame = NSRect(
-            x: (currentWidth - pillWidth) / 2,
-            y: currentHeight - 24,
-            width: pillWidth,
-            height: 30
-        )
-        handleView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin]
-        dropView.addSubview(handleView)
+        // No WindowDragHandleView added; background dragging is enabled window-wide.
     }
 
     // MARK: - Store Observation
@@ -226,12 +234,19 @@ final class LairWindow: NSPanel {
     func hide() {
         wasShownByShake = false
         convertPanel?.dismiss()
+        
+        isExternalDragActive = false
+        isInternalDragActive = false
+        ignoresMouseEvents = false
+        converter.reset()
+        
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.15
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             self.animator().alphaValue = 0
         }, completionHandler: {
             self.orderOut(nil)
+            self.onDidHide?()
         })
     }
  
@@ -281,7 +296,22 @@ final class LairWindow: NSPanel {
             self.animator().alphaValue = 0
         }, completionHandler: {
             self.orderOut(nil)
+            self.onDidHide?()
         })
+    }
+
+    // MARK: - Drag Card Lifecycle Tracking
+
+    func registerDraggingCard(_ card: FileCardNSView) {
+        activeDraggingCards.insert(card)
+        isInternalDragActive = true
+    }
+
+    func unregisterDraggingCard(_ card: FileCardNSView) {
+        activeDraggingCards.remove(card)
+        if activeDraggingCards.isEmpty {
+            isInternalDragActive = false
+        }
     }
 
     func showAtFrame(_ frame: NSRect) {

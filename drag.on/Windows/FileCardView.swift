@@ -11,15 +11,24 @@ final class FileCardNSView: NSView, NSDraggingSource {
     /// Cached thumbnail for sizing and drag previews.
     /// Initially set to a fast placeholder; replaced asynchronously with high-res.
     private(set) var cachedThumbnail: NSImage
+    private weak var activeLairWindow: LairWindow?
 
     init(item: FileItem, store: LairStore) {
         self.item = item
         self.store = store
-        // Use a fast system icon placeholder — no disk I/O or image decoding
-        self.cachedThumbnail = item.placeholderImage()
+        // Synchronously check the cache first to avoid placeholder flash
+        if let cached = ThumbnailCache.shared.cachedImage(for: item.filePath) {
+            self.cachedThumbnail = cached
+        } else {
+            self.cachedThumbnail = item.placeholderImage()
+        }
         super.init(frame: .zero)
 
         wantsLayer = true
+        // Register as a drop destination so external drags landing on a card
+        // are accepted instead of silently blocked.
+        registerForDraggedTypes([.fileURL])
+
         if item.isImage {
             layer?.cornerRadius = 10
             layer?.backgroundColor = NSColor.white.withAlphaComponent(0.92).cgColor
@@ -62,6 +71,65 @@ final class FileCardNSView: NSView, NSDraggingSource {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Once an external drag is detected, make all cards transparent so the
+        // underlying pile / drop-target views handle subsequent drag events.
+        if let lairWindow = window as? LairWindow, lairWindow.isExternalDragActive {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
+    // MARK: - Drop Destination (external drag acceptance)
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        // Reject drops that originate from our own file cards (outbound drags).
+        if sender.draggingSource is FileCardNSView { return [] }
+
+        guard sender.draggingPasteboard.canReadObject(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) else { return [] }
+
+        // Set the flag so that on subsequent hit-tests all cards become
+        // transparent, letting the pile handle the rest of the drag session.
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.isExternalDragActive = true
+        }
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if sender.draggingSource is FileCardNSView { return [] }
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        // Don't reset isExternalDragActive here — the drag is still in
+        // progress and will be picked up by the pile or drop-target view.
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        // Fallback: if the drop lands directly on this card before the drag
+        // transitions to the pile, handle it by forwarding to the store.
+        guard let urls = sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] else {
+            if let lairWindow = self.window as? LairWindow {
+                lairWindow.isExternalDragActive = false
+            }
+            return false
+        }
+        if let lairWindow = self.window as? LairWindow {
+            lairWindow.cancelShakeAutoClose()
+            lairWindow.isExternalDragActive = false
+        }
+        store.addFilesAsync(urls: urls)
+        return true
+    }
 
     // MARK: - Async Thumbnail Loading
 
@@ -71,14 +139,30 @@ final class FileCardNSView: NSView, NSDraggingSource {
             let highRes = await item.thumbnailAsync()
             // Guard against the view being removed from the hierarchy
             guard self.superview != nil else { return }
-            self.cachedThumbnail = highRes
+            
+            if self.cachedThumbnail !== highRes {
+                self.cachedThumbnail = highRes
 
-            // Subtle cross-fade transition
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.15
-                context.allowsImplicitAnimation = true
+                // Subtle cross-fade transition and animate layout updates
+                if let parentPile = self.superview as? FilePileNSView {
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.25
+                        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                        context.allowsImplicitAnimation = true
+                        
+                        self.imageView.image = highRes
+                        parentPile.needsLayout = true
+                    }, completionHandler: nil)
+                } else {
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.15
+                        context.allowsImplicitAnimation = true
+                        self.imageView.image = highRes
+                    }, completionHandler: nil)
+                }
+            } else {
                 self.imageView.image = highRes
-            }, completionHandler: nil)
+            }
         }
     }
 
@@ -107,8 +191,9 @@ final class FileCardNSView: NSView, NSDraggingSource {
         for (offset, fileItem) in store.items.enumerated() {
             guard let url = fileItem.resolveURL() else { continue }
 
-            // Use NSURL directly as NSPasteboardWriting — native UTI handling
-            let dragItem = NSDraggingItem(pasteboardWriter: url as NSURL)
+            // Strip security scope by creating a fresh, standard NSURL from the path
+            let cleanURL = NSURL(fileURLWithPath: url.path)
+            let dragItem = NSDraggingItem(pasteboardWriter: cleanURL)
 
             let stackOffset = CGFloat(offset) * 4
             let dragRect = NSRect(
@@ -143,13 +228,19 @@ final class FileCardNSView: NSView, NSDraggingSource {
         _ session: NSDraggingSession,
         willBeginAt screenPoint: NSPoint
     ) {
+        if let lairWindow = window as? LairWindow {
+            self.activeLairWindow = lairWindow
+            lairWindow.registerDraggingCard(self)
+        }
+
         // Dim the card to indicate it's being dragged — no window hiding
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             self.animator().alphaValue = 0.3
         }
+        
         // Only ignore mouse events if dragging outside the window
-        if let window = self.window {
+        if let window = activeLairWindow {
             let windowPoint = window.convertPoint(fromScreen: screenPoint)
             let isInside = window.contentView?.bounds.contains(windowPoint) ?? false
             window.ignoresMouseEvents = !isInside
@@ -160,7 +251,7 @@ final class FileCardNSView: NSView, NSDraggingSource {
         _ session: NSDraggingSession,
         movedTo screenPoint: NSPoint
     ) {
-        if let window = self.window {
+        if let window = activeLairWindow {
             let windowPoint = window.convertPoint(fromScreen: screenPoint)
             let isInside = window.contentView?.bounds.contains(windowPoint) ?? false
             if window.ignoresMouseEvents != !isInside {
@@ -175,7 +266,14 @@ final class FileCardNSView: NSView, NSDraggingSource {
         operation: NSDragOperation
     ) {
         // Restore the card and window interactivity
-        window?.ignoresMouseEvents = false
+        if let window = activeLairWindow {
+            window.ignoresMouseEvents = false
+            window.unregisterDraggingCard(self)
+            self.activeLairWindow = nil
+        } else {
+            window?.ignoresMouseEvents = false
+        }
+        
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             self.animator().alphaValue = 1.0
