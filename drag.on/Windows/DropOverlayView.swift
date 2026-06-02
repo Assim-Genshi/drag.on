@@ -113,6 +113,9 @@ final class DropOverlayView: NSView {
             return []
         }
 
+        // Apply visual stack formation when dragging multiple files over the lair
+        sender.draggingFormation = .stack
+
         // Activate external drag state on the window
         isReceivingDrag = true
         if let lairWindow = window as? LairWindow {

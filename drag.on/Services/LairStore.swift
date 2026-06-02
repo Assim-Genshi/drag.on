@@ -1,5 +1,6 @@
 import Foundation
 import os
+import AppKit
 
 /// Observable store managing the list of files in the Lair.
 /// Handles persistence via UserDefaults and prunes stale bookmarks on launch.
@@ -11,6 +12,8 @@ final class LairStore: FileStoring {
 
     var items: [FileItem] = []
     var previousItems: [FileItem] = []
+    
+    private var trashSound: NSSound?
 
     // MARK: - Private
 
@@ -22,6 +25,18 @@ final class LairStore: FileStoring {
     init() {
         loadItems()
         loadPreviousItems()
+        preloadSound()
+    }
+
+    private func preloadSound() {
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            let path = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/finder/empty trash.aif"
+            let url = URL(fileURLWithPath: path)
+            let sound = NSSound(contentsOf: url, byReference: true)
+            Task { @MainActor in
+                self?.trashSound = sound
+            }
+        }
     }
 
     // MARK: - Public API
@@ -128,9 +143,24 @@ final class LairStore: FileStoring {
 
     /// Clear all items from the lair.
     func clearAll() {
+        if !items.isEmpty {
+            playTrashSound()
+        }
         items.removeAll()
         saveItems()
         ThumbnailCache.shared.clear()
+    }
+
+    private func playTrashSound() {
+        if let sound = trashSound {
+            sound.play()
+        } else {
+            // Fallback load and play if not preloaded yet
+            let path = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/finder/empty trash.aif"
+            let url = URL(fileURLWithPath: path)
+            trashSound = NSSound(contentsOf: url, byReference: true)
+            trashSound?.play()
+        }
     }
 
     /// Whether all items in the lair are images.

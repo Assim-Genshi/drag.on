@@ -44,6 +44,7 @@ final class DragSourceNSView: NSView, NSDraggingSource {
 
     private var dragOrigin: NSPoint?
     private var trackingArea: NSTrackingArea?
+    private var mouseDownEvent: NSEvent?
 
     init(
         item: FileItem,
@@ -69,6 +70,10 @@ final class DragSourceNSView: NSView, NSDraggingSource {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
+    override func shouldDelayWindowOrdering(for event: NSEvent) -> Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return super.hitTest(point) != nil ? self : nil
+    }
 
     // MARK: - Tracking Area for Hover
 
@@ -94,6 +99,7 @@ final class DragSourceNSView: NSView, NSDraggingSource {
     // MARK: - Mouse Events for Drag & Click
 
     override func mouseDown(with event: NSEvent) {
+        mouseDownEvent = event
         dragOrigin = convert(event.locationInWindow, from: nil)
     }
 
@@ -120,8 +126,23 @@ final class DragSourceNSView: NSView, NSDraggingSource {
             itemsToDrag = [item]
         }
 
+        guard !itemsToDrag.isEmpty else { return }
+
+        // Generate the composite stack preview image
+        let compositeImage = DragPreviewGenerator.compositeStackImage(for: itemsToDrag, totalCount: itemsToDrag.count)
+        let compositeSize = DragPreviewGenerator.dragImageSize(for: itemsToDrag.count)
+
+        // All dragging items share the exact same bounds/center relative to the mouse.
+        // This ensures that even if AppKit/Finder attempts to apply a custom layout/formation,
+        // all items remain perfectly overlapping, maintaining the unified stack visual.
+        let dragRect = NSRect(
+            x: current.x - compositeSize.width / 2,
+            y: current.y - compositeSize.height / 2,
+            width: compositeSize.width,
+            height: compositeSize.height
+        )
+
         var dragItems: [NSDraggingItem] = []
-        let imageSize = NSSize(width: 48, height: 48)
 
         for (offset, fileItem) in itemsToDrag.enumerated() {
             guard let url = fileItem.resolveURL() else { continue }
@@ -129,27 +150,21 @@ final class DragSourceNSView: NSView, NSDraggingSource {
             let cleanURL = NSURL(fileURLWithPath: url.path)
             let dragItem = NSDraggingItem(pasteboardWriter: cleanURL)
 
-            let stackOffset = CGFloat(offset) * 4
-            let dragRect = NSRect(
-                x: current.x - imageSize.width / 2 + stackOffset,
-                y: current.y - imageSize.height / 2 - stackOffset,
-                width: imageSize.width,
-                height: imageSize.height
-            )
-
-            let img = ThumbnailCache.shared.cachedImage(for: fileItem.filePath) ?? fileItem.placeholderImage()
-            dragItem.setDraggingFrame(dragRect, contents: img)
+            if offset == 0 {
+                // First item carries the composite stack preview
+                dragItem.setDraggingFrame(dragRect, contents: compositeImage)
+            } else {
+                // All other items are invisible — still registered for multi-file drop
+                let emptyImage = NSImage(size: NSSize(width: 1, height: 1))
+                dragItem.setDraggingFrame(dragRect, contents: emptyImage)
+            }
             dragItems.append(dragItem)
         }
 
-        guard !dragItems.isEmpty else { return }
-        
-        guard self.window != nil else {
-            Logger.fileItem.error("DragSourceNSView: window is nil during drag initiation, aborting.")
-            return
-        }
-        
-        beginDraggingSession(with: dragItems, event: event, source: self)
+        let dragEvent = mouseDownEvent ?? event
+        let session = beginDraggingSession(with: dragItems, event: dragEvent, source: self)
+        session.draggingFormation = .none
+        session.animatesToStartingPositionsOnCancelOrFail = false
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -165,6 +180,7 @@ final class DragSourceNSView: NSView, NSDraggingSource {
             }
         }
         dragOrigin = nil
+        mouseDownEvent = nil
     }
 
     // MARK: - NSDraggingSource
@@ -180,9 +196,17 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         _ session: NSDraggingSession,
         willBeginAt screenPoint: NSPoint
     ) {
+        session.draggingFormation = .none
         if let lairWindow = window as? LairWindow {
             lairWindow.isInternalDragActive = true
         }
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        movedTo screenPoint: NSPoint
+    ) {
+        session.draggingFormation = .none
     }
 
     func draggingSession(
@@ -193,6 +217,103 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         if let lairWindow = window as? LairWindow {
             lairWindow.isInternalDragActive = false
         }
+        
+        let windowPoint = window?.convertPoint(fromScreen: screenPoint) ?? .zero
+        let localDropPoint = self.convert(windowPoint, from: nil)
+        
+        let startOffsetX = localDropPoint.x - bounds.midX
+        let startOffsetY = localDropPoint.y - bounds.midY
+        
+        performBounceAnimation(offsetX: startOffsetX, offsetY: startOffsetY, delay: 0.0)
+    }
+
+    /// Performs a high-performance, direction-aware slide back and a soft impact bounce/wiggle.
+    func performBounceAnimation(offsetX: CGFloat, offsetY: CGFloat, delay: TimeInterval) {
+        guard let layer = self.layer else { return }
+        
+        layer.removeAnimation(forKey: "bounceTranslationX")
+        layer.removeAnimation(forKey: "bounceTranslationY")
+        layer.removeAnimation(forKey: "bounceRotation")
+        
+        let currentTime = CACurrentMediaTime()
+        let beginTime = currentTime + delay
+        let duration: TimeInterval = 0.52
+        
+        // Cap the maximum initial offset to keep the visual slide within local limits
+        let distance = sqrt(offsetX * offsetX + offsetY * offsetY)
+        var finalOffsetX = offsetX
+        var finalOffsetY = offsetY
+        let maxDistance: CGFloat = 300.0
+        if distance > maxDistance {
+            finalOffsetX = (offsetX / distance) * maxDistance
+            finalOffsetY = (offsetY / distance) * maxDistance
+        }
+        
+        // Calculate a soft, capped overshoot on impact (opposite direction)
+        var overshootX = -finalOffsetX * 0.12
+        var overshootY = -finalOffsetY * 0.12
+        let maxOvershoot: CGFloat = 10.0
+        let overshootDist = sqrt(overshootX * overshootX + overshootY * overshootY)
+        if overshootDist > maxOvershoot {
+            overshootX = (overshootX / overshootDist) * maxOvershoot
+            overshootY = (overshootY / overshootDist) * maxOvershoot
+        }
+        
+        // Rebound offset (soft settling)
+        let reboundX = -overshootX * 0.4
+        let reboundY = -overshootY * 0.4
+        
+        // 1. Translation X Timeline
+        let animX = CAKeyframeAnimation(keyPath: "transform.translation.x")
+        animX.values = [
+            finalOffsetX,
+            overshootX,
+            reboundX,
+            0
+        ]
+        animX.keyTimes = [0, 0.44, 0.72, 1.0] as [NSNumber]
+        animX.timingFunctions = [
+            CAMediaTimingFunction(name: .easeOut),
+            CAMediaTimingFunction(name: .easeInEaseOut),
+            CAMediaTimingFunction(name: .easeInEaseOut)
+        ]
+        animX.duration = duration
+        animX.beginTime = beginTime
+        animX.fillMode = .both
+        
+        // 2. Translation Y Timeline
+        let animY = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        animY.values = [
+            finalOffsetY,
+            overshootY,
+            reboundY,
+            0
+        ]
+        animY.keyTimes = animX.keyTimes
+        animY.timingFunctions = animX.timingFunctions
+        animY.duration = duration
+        animY.beginTime = beginTime
+        animY.fillMode = .both
+        
+        // 3. Soft Rotational Wiggle (only triggered on impact to simulate hitting the grid cell)
+        let animRot = CAKeyframeAnimation(keyPath: "transform.rotation.z")
+        let maxRot: Double = 0.012 * (Double.random(in: 0.7...1.3)) * (Double.random(in: 0...1) > 0.5 ? 1.0 : -1.0)
+        animRot.values = [
+            0,
+            0,
+            maxRot,
+            -maxRot * 0.4,
+            0
+        ]
+        animRot.keyTimes = [0, 0.36, 0.56, 0.8, 1.0] as [NSNumber]
+        animRot.timingFunctions = animX.timingFunctions
+        animRot.duration = duration
+        animRot.beginTime = beginTime
+        animRot.fillMode = .both
+        
+        layer.add(animX, forKey: "bounceTranslationX")
+        layer.add(animY, forKey: "bounceTranslationY")
+        layer.add(animRot, forKey: "bounceRotation")
     }
 
     // MARK: - Contextual Menu
@@ -254,6 +375,52 @@ final class DragSourceNSView: NSView, NSDraggingSource {
             }
             openInTerminalItem.isEnabled = true
             menu.addItem(openInTerminalItem)
+            
+            // 3.5 Open With (Submenu)
+            let openWithSubmenu = NSMenu()
+            openWithSubmenu.autoenablesItems = false
+            
+            let apps = NSWorkspace.shared.urlsForApplications(toOpen: url)
+            if !apps.isEmpty {
+                for appURL in apps {
+                    let appName = FileManager.default.displayName(atPath: appURL.path)
+                    let appIcon = NSWorkspace.shared.icon(forFile: appURL.path)
+                    appIcon.size = NSSize(width: 16, height: 16)
+                    
+                    let appItem = NSMenuItem(
+                        title: appName,
+                        action: #selector(openWithAppCommand(_:)),
+                        keyEquivalent: ""
+                    )
+                    appItem.target = self
+                    appItem.representedObject = appURL
+                    appItem.image = appIcon
+                    appItem.isEnabled = true
+                    openWithSubmenu.addItem(appItem)
+                }
+                openWithSubmenu.addItem(NSMenuItem.separator())
+            }
+            
+            let otherAppItem = NSMenuItem(
+                title: "Other…",
+                action: #selector(openWithOtherCommand(_:)),
+                keyEquivalent: ""
+            )
+            otherAppItem.target = self
+            otherAppItem.isEnabled = true
+            openWithSubmenu.addItem(otherAppItem)
+            
+            let openWithItem = NSMenuItem(
+                title: LairConstants.Lair.openWithActionText,
+                action: nil,
+                keyEquivalent: ""
+            )
+            openWithItem.submenu = openWithSubmenu
+            if let openWithIcon = NSImage(systemSymbolName: LairConstants.Lair.openWithActionIcon, accessibilityDescription: nil) {
+                openWithItem.image = openWithIcon
+            }
+            openWithItem.isEnabled = true
+            menu.addItem(openWithItem)
             
             menu.addItem(NSMenuItem.separator())
             

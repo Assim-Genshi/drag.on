@@ -178,6 +178,21 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
         return SupportedImageExtensions.isImage(fileName: fileName)
     }
 
+    // MARK: - Stable Rotation
+
+    /// Deterministic, trackable rotation angle in degrees that remains stable for this file item.
+    var stableRotation: Double {
+        let bytes = [
+            id.uuid.0, id.uuid.1, id.uuid.2, id.uuid.3,
+            id.uuid.4, id.uuid.5, id.uuid.6, id.uuid.7,
+            id.uuid.8, id.uuid.9, id.uuid.10, id.uuid.11,
+            id.uuid.12, id.uuid.13, id.uuid.14, id.uuid.15
+        ]
+        let sum = bytes.reduce(0) { $0 + Int($1) }
+        let rotations: [Double] = [0.0, -5.0, 4.0, -3.0, 6.0]
+        return rotations[sum % rotations.count]
+    }
+
     // MARK: - Equatable
 
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {

@@ -70,28 +70,28 @@ struct LairConstants {
         
         // Context Menu Action Configuration
         static let openActionText = "Open"
-        static let openActionIcon = "arrow.up.right.square"
+        static let openActionIcon = "arrow.up.forward.app"
         
         static let openWithActionText = "Open With"
-        static let openWithActionIcon = "arrow.up.right.circle"
+        static let openWithActionIcon = "arrow.up.forward.circle"
         
         static let revealInFinderActionText = "Reveal in Finder"
-        static let revealInFinderActionIcon = "magnifyingglass"
+        static let revealInFinderActionIcon = "macwindow.on.rectangle"
         
         static let copyPathActionText = "Copy Path"
-        static let copyPathActionIcon = "doc.on.doc"
+        static let copyPathActionIcon = "doc.on.clipboard"
         
         static let renameActionText = "Rename…"
-        static let renameActionIcon = "pencil"
+        static let renameActionIcon = "square.and.pencil"
         
         static let duplicateActionText = "Duplicate"
         static let duplicateActionIcon = "plus.square.on.square"
         
         static let compressZipActionText = "Compress ZIP"
-        static let compressZipActionIcon = "archivebox"
+        static let compressZipActionIcon = "doc.zipper"
         
         static let convertActionText = "Convert…"
-        static let convertActionIcon = "wand.and.sparkles"
+        static let convertActionIcon = "arrow.2.squarepath"
         
         static let openInTerminalActionText = "Open in Terminal"
         static let openInTerminalActionIcon = "terminal"
@@ -99,7 +99,7 @@ struct LairConstants {
         static let openInFinderActionText = "Open in Finder"
         static let openInFinderActionIcon = "folder"
         
-        static let removeFromLairActionText = "Remove from Lair"
+        static let removeFromLairActionText = "Remove the top artifact"
         static let removeFromLairActionIcon = "minus.circle"
         
         // Button Opacity Configurations

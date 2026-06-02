@@ -12,6 +12,8 @@ final class DragMonitor {
     var onDragEnded: (@Sendable @MainActor () -> Void)?
 
     private var pollTimer: DispatchSourceTimer?
+    private var lastChangeCount = -1
+    private var cachedIsFileDragActive = false
     private var wasButtonDown = false
 
     /// High-priority background queue for polling — keeps main thread free.
@@ -73,28 +75,34 @@ final class DragMonitor {
     // MARK: - File Drag Detection (runs on pollQueue)
 
     /// Check if the system drag pasteboard contains file URLs or web URLs.
-    /// NSPasteboard queries involve synchronous IPC — running this on the
-    /// background queue prevents main-thread hitching.
+    /// Runs the actual pasteboard queries on the main thread since NSPasteboard
+    /// is not thread-safe, but mutates cached state on the background queue to
+    /// avoid Sendable/isolation warnings.
     private func isFileDragActive() -> Bool {
-        let dragPasteboard = NSPasteboard(name: .drag)
-        
-        // Local file URLs
-        if dragPasteboard.canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) {
-            return true
+        // Retrieve changeCount from the main thread without capturing self
+        let changeCount = DispatchQueue.main.sync {
+            return NSPasteboard(name: .drag).changeCount
         }
         
-        // Web URLs (e.g. image links dragged from browsers)
-        if dragPasteboard.canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: false]
-        ) {
-            return true
+        if changeCount != lastChangeCount {
+            lastChangeCount = changeCount
+            
+            // Query pasteboard types on the main thread
+            cachedIsFileDragActive = DispatchQueue.main.sync {
+                let dragPasteboard = NSPasteboard(name: .drag)
+                let canReadFileURL = dragPasteboard.canReadObject(
+                    forClasses: [NSURL.self],
+                    options: [.urlReadingFileURLsOnly: true]
+                )
+                let canReadWebURL = dragPasteboard.canReadObject(
+                    forClasses: [NSURL.self],
+                    options: [.urlReadingFileURLsOnly: false]
+                )
+                return canReadFileURL || canReadWebURL
+            }
         }
         
-        return false
+        return cachedIsFileDragActive
     }
 
     deinit {

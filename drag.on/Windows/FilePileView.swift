@@ -36,7 +36,9 @@ final class FilePileNSView: NSView, NSDraggingSource {
         // 1. Remove obsolete cards
         cardViews.forEach { card in
             if !items.contains(where: { $0.id == card.item.id }) {
-                card.removeFromSuperview()
+                card.performClearAnimation {
+                    card.removeFromSuperview()
+                }
             }
         }
 
@@ -83,7 +85,9 @@ final class FilePileNSView: NSView, NSDraggingSource {
         }
         
         let padding: CGFloat = 5
-        let rotations: [Double] = [0, -5, 4, -3, 6]
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
 
         for (index, card) in cardViews.enumerated() {
             let offset = itemsCount - 1 - index
@@ -108,18 +112,25 @@ final class FilePileNSView: NSView, NSDraggingSource {
             let x = (bounds.width - totalW) / 2
             let y = (bounds.height - totalH) / 2 - CGFloat(offset) * 2
 
+            // 1. MUST reset rotation to 0 before setting frame to prevent AppKit geometry jumps
+            card.frameCenterRotation = 0.0
+
             card.frame = NSRect(x: x, y: y, width: totalW, height: totalH)
             card.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
 
             card.wantsLayer = true
-            let rot = rotations[offset % rotations.count]
+            
+            // 2. Set anchor point to center to allow proper scaling and rotations
             card.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
             card.layer?.position = CGPoint(x: x + totalW / 2, y: y + totalH / 2)
+            
+            let rot = card.item.stableRotation
             
             if card.isNewCard {
                 card.isNewCard = false
                 card.alphaValue = 0.0
-                card.layer?.transform = CATransform3DMakeScale(1.15, 1.15, 1.0)
+                
+                // Set the final rotation so scale animation builds upon it
                 card.frameCenterRotation = rot
                 
                 NSAnimationContext.runAnimationGroup { context in
@@ -127,13 +138,13 @@ final class FilePileNSView: NSView, NSDraggingSource {
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     card.animator().alphaValue = 1.0
                     
-                    let scaleAnimation = CABasicAnimation(keyPath: "transform")
-                    scaleAnimation.fromValue = CATransform3DMakeScale(1.15, 1.15, 1.0)
-                    scaleAnimation.toValue = CATransform3DIdentity
+                    // Animate only the scale component to preserve base rotation
+                    let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
+                    scaleAnimation.fromValue = 1.15
+                    scaleAnimation.toValue = 1.0
                     scaleAnimation.duration = 0.3
                     scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     card.layer?.add(scaleAnimation, forKey: "dropScaleAnimation")
-                    card.layer?.transform = CATransform3DIdentity
                 }
             } else {
                 card.frameCenterRotation = rot
@@ -141,20 +152,55 @@ final class FilePileNSView: NSView, NSDraggingSource {
 
             card.shadow = NSShadow()
             if card.item.isImage {
-                card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.45).cgColor
-                card.layer?.shadowRadius = 8
-                card.layer?.shadowOffset = CGSize(width: 0, height: -3)
+                card.layer?.shadowColor = NSColor.black.withAlphaComponent(0.18).cgColor
+                card.layer?.shadowRadius = 4
+                card.layer?.shadowOffset = CGSize(width: 0, height: -1.5)
                 card.layer?.shadowOpacity = 1
             } else {
                 card.layer?.shadowOpacity = 0
             }
         }
+
+        CATransaction.commit()
     }
 
     /// Mark that cards need reloading on next layout pass.
     func setNeedsReload() {
         needsReload = true
         needsLayout = true
+    }
+
+    /// Triggers a cascading physical bounce and slide-back animation on all individual cards
+    /// from the coordinates where the drag was released.
+    func triggerBounceBackAnimation(from screenPoint: NSPoint) {
+        guard let window = self.window else { return }
+        
+        // Convert screen drop point to FilePileNSView coordinates
+        let windowPoint = window.convertPoint(fromScreen: screenPoint)
+        let localDropPoint = self.convert(windowPoint, from: nil)
+        
+        // Apply cascading bounce animations to the stack items
+        for (index, card) in cardViews.enumerated() {
+            // Very fast fade-in to blend smoothly with the physical bounce
+            if card.alphaValue < 1.0 {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.08
+                    card.animator().alphaValue = 1.0
+                }
+            }
+            
+            // Calculate the card's resting center
+            let cardCenter = CGPoint(x: card.frame.midX, y: card.frame.midY)
+            
+            // Vector from card center to the drop point
+            let startOffsetX = localDropPoint.x - cardCenter.x
+            let startOffsetY = localDropPoint.y - cardCenter.y
+            
+            // Cascading wave delay (topmost cards react slightly faster)
+            let delay = Double(index) * 0.035
+            
+            card.performBounceAnimation(offsetX: startOffsetX, offsetY: startOffsetY, delay: delay)
+        }
     }
 
     // MARK: - NSDraggingSource

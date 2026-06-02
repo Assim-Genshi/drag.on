@@ -14,7 +14,14 @@ struct AsyncThumbnailView: View {
     let url: URL
     let size: CGSize
 
-    @State private var image: NSImage? = nil
+    @State private var image: NSImage?
+
+    init(url: URL, size: CGSize) {
+        self.url = url
+        self.size = size
+        let cached = ThumbnailCache.shared.cachedImage(for: url.path)
+        self._image = State(initialValue: cached)
+    }
 
     var body: some View {
         Group {

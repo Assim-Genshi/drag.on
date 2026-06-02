@@ -44,8 +44,13 @@ struct LairView: View {
             }
 
             if uiState.isManagementPanelActive {
-                managementPanelContent
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                LairManagerView(
+                    store: store,
+                    uiState: uiState,
+                    onClose: onClose,
+                    onConvertSelected: onConvertSelected
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
                 ZStack {
                     mainLairContent
@@ -215,6 +220,29 @@ struct LairView: View {
                                     Label(LairConstants.Lair.openInTerminalActionText, systemImage: LairConstants.Lair.openInTerminalActionIcon)
                                 }
                                 
+                                let apps = NSWorkspace.shared.urlsForApplications(toOpen: url)
+                                Menu {
+                                    ForEach(apps, id: \.self) { appURL in
+                                        Button(action: {
+                                            NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
+                                        }) {
+                                            Label {
+                                                Text(FileManager.default.displayName(atPath: appURL.path))
+                                            } icon: {
+                                                appIcon(for: appURL.path)
+                                            }
+                                        }
+                                    }
+                                    Divider()
+                                    Button(action: {
+                                        openWithOther(url: url)
+                                    }) {
+                                        Label("Other…", systemImage: "ellipsis")
+                                    }
+                                } label: {
+                                    Label(LairConstants.Lair.openWithActionText, systemImage: LairConstants.Lair.openWithActionIcon)
+                                }
+                                
                                 Divider()
                                 
                                 Button(action: {
@@ -246,7 +274,7 @@ struct LairView: View {
                                 Button(action: {
                                     compressItem(url: url)
                                 }) {
-                                    Label("Compress", systemImage: LairConstants.Lair.compressZipActionIcon)
+                                    Label(LairConstants.Lair.compressZipActionText, systemImage: LairConstants.Lair.compressZipActionIcon)
                                 }
                             } else {
                                 Button(action: {
@@ -261,12 +289,18 @@ struct LairView: View {
                                         Button(action: {
                                             NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
                                         }) {
-                                            Text(FileManager.default.displayName(atPath: appURL.path))
+                                            Label {
+                                                Text(FileManager.default.displayName(atPath: appURL.path))
+                                            } icon: {
+                                                appIcon(for: appURL.path)
+                                            }
                                         }
                                     }
                                     Divider()
-                                    Button("Other…") {
+                                    Button(action: {
                                         openWithOther(url: url)
+                                    }) {
+                                        Label("Other…", systemImage: "ellipsis")
                                     }
                                 } label: {
                                     Label(LairConstants.Lair.openWithActionText, systemImage: LairConstants.Lair.openWithActionIcon)
@@ -307,7 +341,11 @@ struct LairView: View {
                                 }
                                 
                                 Button(action: onConvert) {
-                                    Label(LairConstants.Lair.convertActionText, systemImage: LairConstants.Lair.convertActionIcon)
+                                    Label {
+                                        Text("✨ Convert…")
+                                    } icon: {
+                                        Image(systemName: "wand.and.stars.inverse")
+                                    }
                                 }
                                 .disabled(!topItem.isImage)
                             }
@@ -342,7 +380,13 @@ struct LairView: View {
     }
 
     // MARK: - Helper Methods for Chevron Menu Actions
-
+    
+    private func appIcon(for path: String) -> Image {
+        let nsImage = NSWorkspace.shared.icon(forFile: path)
+        nsImage.size = NSSize(width: 16, height: 16)
+        return Image(nsImage: nsImage).renderingMode(.original)
+    }
+    
     private func isDirectory(url: URL) -> Bool {
         var isDir: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
@@ -481,351 +525,5 @@ struct LairView: View {
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runModal()
-    }
-
-    // MARK: - Management Panel Content
-
-    private var selectedItems: [FileItem] {
-        store.items.filter { uiState.selectedItemIDs.contains($0.id) }
-    }
-
-    private var selectedImages: [FileItem] {
-        selectedItems.filter(\.isImage)
-    }
-
-    private var managementPanelContent: some View {
-        VStack(spacing: 0) {
-            // Header bar
-            HStack {
-                LairCircleButton(systemName: "chevron.left", action: {
-                    withAnimation(.snappy(duration: 0.3)) {
-                        uiState.isManagementPanelActive = false
-                    }
-                })
-                .pointerCursor()
-                
-                Spacer()
-                
-                Text(uiState.selectedItemIDs.isEmpty ? "Lair Manager" : "\(uiState.selectedItemIDs.count) Selected")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(content100)
-                
-                Spacer()
-                
-                LairCircleButton(systemName: "xmark", action: {
-                    store.clearAll()
-                    onClose()
-                })
-                .pointerCursor()
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-            
-            // Scrollable Grid of file items
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVGrid(columns: [
-                    GridItem(.adaptive(minimum: 95, maximum: 110), spacing: 10)
-                ], spacing: 10) {
-                    ForEach(store.items) { item in
-                        FileGridCell(
-                            item: item,
-                            store: store,
-                            isSelected: uiState.selectedItemIDs.contains(item.id),
-                            onSelectToggle: {
-                                withAnimation(.snappy(duration: 0.25)) {
-                                    if uiState.selectedItemIDs.contains(item.id) {
-                                        uiState.selectedItemIDs.remove(item.id)
-                                    } else {
-                                        uiState.selectedItemIDs.insert(item.id)
-                                    }
-                                }
-                            },
-                            getSelectedItems: {
-                                selectedItems
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
-            }
-            
-            Spacer(minLength: 8)
-            
-            // Floating management action bar
-            managementActionBar
-                .padding(.bottom, 14)
-        }
-    }
-
-    private var managementActionBar: some View {
-        ZStack {
-            if uiState.selectedItemIDs.isEmpty {
-                Text("Select items to perform batch actions")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(content200)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 34)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            } else {
-                HStack(spacing: 8) {
-                    Spacer()
-
-                    ManagementButton(
-                        icon: Image(systemName: "minus.circle"),
-                        text: "Deselect",
-                        color: content100,
-                        action: {
-                            withAnimation(.snappy(duration: 0.25)) {
-                                uiState.selectedItemIDs.removeAll()
-                            }
-                        }
-                    )
-                    .pointerCursor()
-
-                    ManagementButton(
-                        icon: Image(systemName: "arrow.up.right.square"),
-                        text: "Open",
-                        color: content100,
-                        action: {
-                            for item in selectedItems {
-                                if let url = item.resolveURL() {
-                                    NSWorkspace.shared.open(url)
-                                }
-                            }
-                        }
-                    )
-                    .pointerCursor()
-
-                    ManagementButton(
-                        icon: Image(systemName: "magnifyingglass"),
-                        text: "Reveal",
-                        color: content100,
-                        action: {
-                            let urls = selectedItems.compactMap { $0.resolveURL() }
-                            if !urls.isEmpty {
-                                NSWorkspace.shared.activateFileViewerSelecting(urls)
-                            }
-                        }
-                    )
-                    .pointerCursor()
-
-                    if !selectedImages.isEmpty {
-                        ManagementButton(
-                            icon: WandIcon(size: 11, weight: .bold),
-                            text: "Convert",
-                            color: .blue,
-                            action: {
-                                onConvertSelected(selectedItems)
-                            }
-                        )
-                        .pointerCursor()
-                    }
-
-                    ManagementButton(
-                        icon: Image(systemName: "trash"),
-                        text: "Delete",
-                        color: .red,
-                        action: {
-                            withAnimation(.snappy(duration: 0.25)) {
-                                for id in uiState.selectedItemIDs {
-                                    store.removeFile(id: id)
-                                }
-                                uiState.selectedItemIDs.removeAll()
-                            }
-                        }
-                    )
-                    .pointerCursor()
-
-                    Spacer()
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            }
-        }
-        .frame(height: 34)
-        .padding(.horizontal, 14)
-    }
-}
-
-// MARK: - File Grid Cell
-
-struct FileGridCell: View {
-    let item: FileItem
-    let store: LairStore
-    let isSelected: Bool
-    let onSelectToggle: () -> Void
-    let getSelectedItems: () -> [FileItem]
-
-    @State private var isHovered = false
-    @State private var thumbnail: NSImage? = nil
-
-    private var content100: Color {
-        Color("content-100")
-    }
-
-    private var content200: Color {
-        Color("content-200")
-    }
-
-    private var borderColor: Color {
-        Color("border-color")
-    }
-
-    var body: some View {
-        ZStack {
-            VStack(spacing: 8) {
-                ZStack {
-                    if let img = thumbnail {
-                        Image(nsImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 48, height: 48)
-                            .cornerRadius(6)
-                            .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 2)
-                    } else {
-                        Image(nsImage: item.placeholderImage())
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 48, height: 48)
-                    }
-                }
-                .frame(width: 54, height: 54)
-
-                Text(item.fileName)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(content100)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 4)
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.white.opacity(0.12) : (isHovered ? Color.white.opacity(0.06) : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.white.opacity(0.24) : Color.clear, lineWidth: 1.0)
-            )
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? Color.blue : content200.opacity(0.4))
-                        .padding(6)
-                }
-                Spacer()
-            }
-
-            DragSourceHelper(
-                item: item,
-                store: store,
-                isSelected: isSelected,
-                onSelectToggle: onSelectToggle,
-                onHoverToggle: { hover in
-                    self.isHovered = hover
-                },
-                getSelectedItems: getSelectedItems
-            )
-        }
-        .frame(height: 94)
-        .onAppear {
-            loadThumbnail()
-        }
-    }
-
-    private func loadThumbnail() {
-        Task { @MainActor in
-            let img = await item.thumbnailAsync()
-            self.thumbnail = img
-        }
-    }
-}
-
-// MARK: - Management Button
-
-struct ManagementButton<Icon: View>: View {
-    let icon: Icon
-    let text: String
-    let color: Color
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    private var content100: Color {
-        Color("content-100")
-    }
-
-    private var borderColor: Color {
-        Color("border-color")
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                icon
-                Text(text)
-            }
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(isHovering ? color : content100.opacity(0.85))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color("Secondary-surfece").opacity(LairConstants.Lair.buttonBackgroundOpacity))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(borderColor.opacity(LairConstants.Lair.buttonBorderOpacity), lineWidth: 1.0)
-            )
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(isHovering ? 1.15 : 1.0)
-        .onHover { h in
-            withAnimation(.easeOut(duration: 0.15)) {
-                isHovering = h
-            }
-        }
-    }
-}
-
-// MARK: - File Count Label
-
-struct FileCountLabel: View {
-    let items: [FileItem]
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(countText)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color("content-100"))
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(Color("content-100"))
-        }
-        .frame(height: 32)
-        .frame(maxWidth: .infinity)
-        .background(
-            Capsule()
-                .fill(Color("Secondary-surfece").opacity(LairConstants.Lair.buttonBackgroundOpacity))
-        )
-        .overlay(
-            Capsule()
-                .stroke(Color("border-color").opacity(LairConstants.Lair.buttonBorderOpacity), lineWidth: 1.0)
-        )
-    }
-
-    private var countText: String {
-        let count = items.count
-        if count == 1 {
-            return "1 File"
-        }
-        let allImages = items.allSatisfy { SupportedImageExtensions.isImage(fileName: $0.fileName) }
-        return allImages ? "\(count) Images" : "\(count) Files"
     }
 }

@@ -15,6 +15,7 @@ final class LairWindow: NSPanel {
     private var cancellables = Set<AnyCancellable>()
     private var lastCompactModeValue: Bool = false
     private var wasShownByShake: Bool = false
+    private var lastItemIds: [UUID] = []
 
     var onDidHide: (() -> Void)?
     var isExternalDragActive: Bool = false {
@@ -30,11 +31,15 @@ final class LairWindow: NSPanel {
         didSet {
             guard isInternalDragActive != oldValue else { return }
             
-            // Fade out the cards completely when dragging starts, fade back in when ends
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                filePileView?.animator().alphaValue = isInternalDragActive ? 0.0 : 1.0
+            // Hide the cards immediately when dragging starts, fade back in when ends
+            if isInternalDragActive {
+                filePileView?.alphaValue = 0.0
+            } else {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.2
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    filePileView?.animator().alphaValue = 1.0
+                }
             }
             
             if !isInternalDragActive {
@@ -53,6 +58,7 @@ final class LairWindow: NSPanel {
     init(store: LairStore, converter: ImageConverter) {
         self.store = store
         self.converter = converter
+        self.lastItemIds = store.items.map(\.id)
 
         let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
         self.lastCompactModeValue = isCompact
@@ -170,7 +176,20 @@ final class LairWindow: NSPanel {
             uiState.selectedItemIDs.removeAll()
         }
         updateWindowFrameAndPileVisibility()
-        filePileView?.reloadCards()
+        
+        let currentItemIds = store.items.map(\.id)
+        let itemsChanged = currentItemIds != lastItemIds
+        lastItemIds = currentItemIds
+        
+        if !uiState.isManagementPanelActive {
+            if itemsChanged || filePileView?.isReloadPending == true {
+                filePileView?.reloadCards()
+            }
+        } else {
+            if itemsChanged {
+                filePileView?.isReloadPending = true
+            }
+        }
     }
 
     private func updateFilePileFrame() {
@@ -247,7 +266,11 @@ final class LairWindow: NSPanel {
         let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
         
         if currentFrame != newFrame {
-            self.setFrame(newFrame, display: true, animate: true)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                self.animator().setFrame(newFrame, display: true)
+            }
         }
         
         updateFilePileFrame()
@@ -419,15 +442,4 @@ final class LairWindow: NSPanel {
     }
 
     override var canBecomeKey: Bool { true }
-
-    override func sendEvent(_ event: NSEvent) {
-        switch event.type {
-        case .leftMouseDown, .rightMouseDown:
-            NSApp.activate()
-            makeKeyAndOrderFront(nil)
-        default:
-            break
-        }
-        super.sendEvent(event)
-    }
 }

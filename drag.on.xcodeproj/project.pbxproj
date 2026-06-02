@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		796A80832FCF28AE00E2196F /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 796A80822FCF28AE00E2196F /* LaunchAtLogin */; };
 		79BE98692FC2A30E00C194DF /* WebP in Frameworks */ = {isa = PBXBuildFile; productRef = 792B8D6A2FC29F9E00BC8880 /* WebP */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +47,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				796A80832FCF28AE00E2196F /* LaunchAtLogin in Frameworks */,
 				79BE98692FC2A30E00C194DF /* WebP in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -105,6 +107,7 @@
 			);
 			name = drag.on;
 			packageProductDependencies = (
+				796A80822FCF28AE00E2196F /* LaunchAtLogin */,
 				792B8D6A2FC29F9E00BC8880 /* WebP */,
 			);
 			productName = drag.on;
@@ -185,6 +188,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				792B8D692FC29F9E00BC8880 /* XCRemoteSwiftPackageReference "Swift-WebP" */,
+				796A807F2FCF26EB00E2196F /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				796A80802FCF28AE00E2196F /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 796853B02F3E29850068B99A /* Products */;
@@ -294,6 +299,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -357,6 +363,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -389,6 +396,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
 				DEVELOPMENT_TEAM = 447KT3KGQ2;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -424,6 +432,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
 				DEVELOPMENT_TEAM = 447KT3KGQ2;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -454,6 +463,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.8;
 				MARKETING_VERSION = 1.0;
@@ -471,6 +481,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.8;
 				MARKETING_VERSION = 1.0;
@@ -487,6 +498,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
@@ -503,6 +515,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
@@ -564,12 +577,33 @@
 				minimumVersion = 0.5.0;
 			};
 		};
+		796A807F2FCF26EB00E2196F /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
+		796A80802FCF28AE00E2196F /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		792B8D6A2FC29F9E00BC8880 /* WebP */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = WebP;
+		};
+		796A80822FCF28AE00E2196F /* LaunchAtLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 796A80802FCF28AE00E2196F /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
+			productName = LaunchAtLogin;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

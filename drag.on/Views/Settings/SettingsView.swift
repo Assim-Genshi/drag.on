@@ -1,5 +1,6 @@
 import SwiftUI
-import ServiceManagement
+import LaunchAtLogin
+
 
 // MARK: - Window Accessor & Appearance Modifier
 
@@ -101,7 +102,6 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
 struct SettingsView: View {
     @AppStorage("shakeSensitivity") private var shakeSensitivity: Double = 3.0
     @AppStorage("defaultFormat") private var defaultFormat: String = "WebP"
-    @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("compactMode") private var compactMode: Bool = false
     @AppStorage("appTheme") private var appTheme: String = "System"
     @AppStorage("preferredTerminal") private var preferredTerminal: String = "Terminal.app"
@@ -175,12 +175,9 @@ struct SettingsView: View {
                     sectionHeader("GENERAL")
                     
                         row(title: "Launch At Login", subtitle: "Start Drag.on when you log in") {
-                            Toggle("", isOn: $launchAtLogin)
+                            LaunchAtLogin.Toggle("")
                                 .toggleStyle(.switch)
                                 .labelsHidden()
-                                .onChange(of: launchAtLogin) { _, newValue in
-                                    updateLoginItem(enabled: newValue)
-                                }
                         }
                         
                         row(title: "Terminal", subtitle: "App to open folders in") {
@@ -388,21 +385,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
-
-    private func updateLoginItem(enabled: Bool) {
-        if #available(macOS 16, *) {
-            // Future: use SMAppService for macOS 16+
-        }
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-        } catch {
-            // Silently handle — login item registration may fail without proper entitlement
-        }
-    }
 
     private var downloadLocationDisplayName: String {
         if webDropLocationPath.isEmpty {
