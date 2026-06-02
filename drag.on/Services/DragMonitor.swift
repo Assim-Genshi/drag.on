@@ -72,15 +72,29 @@ final class DragMonitor {
 
     // MARK: - File Drag Detection (runs on pollQueue)
 
-    /// Check if the system drag pasteboard contains file URLs.
+    /// Check if the system drag pasteboard contains file URLs or web URLs.
     /// NSPasteboard queries involve synchronous IPC — running this on the
     /// background queue prevents main-thread hitching.
     private func isFileDragActive() -> Bool {
         let dragPasteboard = NSPasteboard(name: .drag)
-        return dragPasteboard.canReadObject(
+        
+        // Local file URLs
+        if dragPasteboard.canReadObject(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
-        )
+        ) {
+            return true
+        }
+        
+        // Web URLs (e.g. image links dragged from browsers)
+        if dragPasteboard.canReadObject(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: false]
+        ) {
+            return true
+        }
+        
+        return false
     }
 
     deinit {

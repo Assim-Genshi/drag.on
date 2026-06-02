@@ -82,9 +82,19 @@ final class ThumbnailCache {
     ) async -> NSImage {
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
 
-        // 1. Get modification date of the file on a background thread (avoid disk I/O on main actor)
-        let modDate = await Task.detached(priority: .userInitiated) {
-            (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date(timeIntervalSince1970: 0)
+        // 1. Get metadata (modification date, directory status) on a background thread (avoid disk I/O on main actor)
+        let (modDate, skipQL) = await Task.detached(priority: .userInitiated) {
+            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isDirectoryKey, .isPackageKey, .isApplicationKey])
+            let date = values?.contentModificationDate ?? Date(timeIntervalSince1970: 0)
+            let isDir = values?.isDirectory ?? false
+            let isPkg = values?.isPackage ?? false
+            let isApp = values?.isApplication ?? false
+            
+            // Skip QL for regular folders and applications. 
+            // Allow QL for non-app packages (like .pages, .keynote documents).
+            let isRegularFolder = isDir && !isPkg
+            let skip = isRegularFolder || isApp
+            return (date, skip)
         }.value
 
         // 2. Check the cache on the MainActor
@@ -102,7 +112,7 @@ final class ThumbnailCache {
 
         // 4. Start new generation on a background thread
         let task = Task<SendableImage, Never>.detached(priority: .userInitiated) {
-            await Self.generateThumbnail(url: url, size: size, scale: scale, isImage: isImage)
+            await Self.generateThumbnail(url: url, size: size, scale: scale, isImage: isImage, skipQL: skipQL)
         }
         inProgress[filePath] = task
 
@@ -125,21 +135,24 @@ final class ThumbnailCache {
         url: URL,
         size: CGSize,
         scale: CGFloat,
-        isImage: Bool
+        isImage: Bool,
+        skipQL: Bool
     ) async -> SendableImage {
-        // Try QLThumbnailGenerator first (hardware-accelerated)
-        let request = QLThumbnailGenerator.Request(
-            fileAt: url,
-            size: size,
-            scale: scale,
-            representationTypes: .all
-        )
+        if !skipQL {
+            // Try QLThumbnailGenerator first (hardware-accelerated)
+            let request = QLThumbnailGenerator.Request(
+                fileAt: url,
+                size: size,
+                scale: scale,
+                representationTypes: .all
+            )
 
-        do {
-            let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-            return SendableImage(image: representation.nsImage)
-        } catch {
-            Logger.thumbnailCache.debug("QL thumbnail failed for \(url.lastPathComponent): \(error.localizedDescription)")
+            do {
+                let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+                return SendableImage(image: representation.nsImage)
+            } catch {
+                Logger.thumbnailCache.debug("QL thumbnail failed for \(url.lastPathComponent): \(error.localizedDescription)")
+            }
         }
 
         // Fallback 1: CGImageSource for images

@@ -47,7 +47,7 @@ enum ImageFormat: String, CaseIterable, Identifiable, Sendable {
 struct LairConstants {
     struct Lair {
         static let width: CGFloat = 260
-        static let height: CGFloat = 300
+        static let height: CGFloat = 280
         static let cornerRadius: CGFloat = 26
         
         // File Pile Position
@@ -55,7 +55,7 @@ struct LairConstants {
         static let filePileYStandard: CGFloat = 60
         static let filePileHeightStandard: CGFloat = 200
         
-        static let filePileYConvertShown: CGFloat = 100 // Pushed to the top a little
+        static let filePileYConvertShown: CGFloat = 86 // Pushed to the top a little
         static let filePileHeightConvertShown: CGFloat = 164 // Adjusted to fit under the top bar
         
         // File Card Sizes
@@ -104,7 +104,12 @@ struct LairConstants {
         
         // Button Opacity Configurations
         static let buttonBackgroundOpacity: Double = 0.3
-        static let buttonBorderOpacity: Double = 0.3
+        static let buttonBorderOpacity: Double = 1
+        
+        // Drag Active Animations Configuration
+        static let dragActiveBgOpacity: Double = 0.35
+        static let dragActiveBorderWidth: CGFloat = 4.0
+        static let dragInactiveBorderWidth: CGFloat = 2.0
 
         // Compact Mode Configuration
         static let compactWidth: CGFloat = 220
@@ -118,9 +123,10 @@ struct LairConstants {
     }
     
     struct Convert {
-        static let width: CGFloat = 350
-        static let height: CGFloat = 436
+        static let width: CGFloat = 380
+        static let height: CGFloat = 480
         static let cornerRadius: CGFloat = 36 // Unified corner radius to resolve overlaps
-        static let inputBorderWidth: CGFloat = 2 // Centralized input border weight
+        static let inputBorderWidth: CGFloat = 1 // Centralized input border weight
+        static let inputHeight: CGFloat = 42 // Centralized input field height
     }
 }

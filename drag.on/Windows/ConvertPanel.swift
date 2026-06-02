@@ -39,7 +39,7 @@ final class ConvertPanel: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        isMovableByWindowBackground = false
+        isMovableByWindowBackground = true
         animationBehavior = .utilityWindow
     }
 

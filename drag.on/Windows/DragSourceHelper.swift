@@ -1,5 +1,6 @@
 import Cocoa
 import SwiftUI
+import os
 
 /// An NSViewRepresentable wrapper that provides native AppKit mouse hover, clicking,
 /// and multi-file drag-out behavior inside SwiftUI grid cells.
@@ -142,6 +143,12 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         }
 
         guard !dragItems.isEmpty else { return }
+        
+        guard self.window != nil else {
+            Logger.fileItem.error("DragSourceNSView: window is nil during drag initiation, aborting.")
+            return
+        }
+        
         beginDraggingSession(with: dragItems, event: event, source: self)
     }
 
@@ -167,6 +174,25 @@ final class DragSourceNSView: NSView, NSDraggingSource {
         sourceOperationMaskFor context: NSDraggingContext
     ) -> NSDragOperation {
         return .copy
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        willBeginAt screenPoint: NSPoint
+    ) {
+        if let lairWindow = window as? LairWindow {
+            lairWindow.isInternalDragActive = true
+        }
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        endedAt screenPoint: NSPoint,
+        operation: NSDragOperation
+    ) {
+        if let lairWindow = window as? LairWindow {
+            lairWindow.isInternalDragActive = false
+        }
     }
 
     // MARK: - Contextual Menu

@@ -10,6 +10,8 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     let fileName: String
     let filePath: String
     let bookmarkData: Data
+    var isDownloading: Bool = false
+    var remoteURL: URL? = nil
 
     // MARK: - Factory
 
@@ -31,6 +33,18 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
             Logger.fileItem.error("Failed to create bookmark for \(url.path): \(error.localizedDescription)")
             return nil
         }
+    }
+    
+    /// Create a temporary FileItem representing an active download.
+    static func downloading(remoteURL: URL) -> FileItem {
+        return FileItem(
+            id: UUID(),
+            fileName: remoteURL.lastPathComponent.isEmpty ? "Downloading..." : remoteURL.lastPathComponent,
+            filePath: "",
+            bookmarkData: Data(),
+            isDownloading: true,
+            remoteURL: remoteURL
+        )
     }
 
     // MARK: - URL Resolution
@@ -78,6 +92,13 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     /// Uses the system icon which is always fast and cached by the OS.
     @MainActor
     func placeholderImage() -> NSImage {
+        if isDownloading {
+            // Return a generic web or download icon when downloading
+            if let img = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil) {
+                return img
+            }
+        }
+        
         if let url = resolveURL(), FileManager.default.fileExists(atPath: url.path) {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
@@ -131,6 +152,10 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
     /// Uses QLThumbnailGenerator for hardware-accelerated, Retina-quality previews.
     @MainActor
     func thumbnailAsync(size: CGSize = CGSize(width: 180, height: 180)) async -> NSImage {
+        if isDownloading {
+            return placeholderImage()
+        }
+        
         guard let url = resolveURL() else {
             return placeholderImage()
         }
@@ -147,7 +172,10 @@ struct FileItem: Codable, Identifiable, Equatable, Sendable {
 
     /// Whether this file is a recognized image format.
     var isImage: Bool {
-        SupportedImageExtensions.isImage(fileName: fileName)
+        if isDownloading {
+            return true // We assume web drops are mostly images for the preview styling
+        }
+        return SupportedImageExtensions.isImage(fileName: fileName)
     }
 
     // MARK: - Equatable

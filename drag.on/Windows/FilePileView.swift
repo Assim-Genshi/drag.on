@@ -12,55 +12,11 @@ final class FilePileNSView: NSView, NSDraggingSource {
         self.store = store
         super.init(frame: .zero)
         wantsLayer = true
-        registerForDraggedTypes([.fileURL])
         reloadCards()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not implemented")
-    }
-
-    // MARK: - Drop Destination (pass-through)
-
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard sender.draggingPasteboard.canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) else {
-            return []
-        }
-        if let lairWindow = self.window as? LairWindow {
-            lairWindow.isExternalDragActive = true
-        }
-        return .copy
-    }
-
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        return .copy
-    }
-
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        if let lairWindow = self.window as? LairWindow {
-            lairWindow.isExternalDragActive = false
-        }
-    }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let urls = sender.draggingPasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) as? [URL] else {
-            if let lairWindow = self.window as? LairWindow {
-                lairWindow.isExternalDragActive = false
-            }
-            return false
-        }
-        if let lairWindow = self.window as? LairWindow {
-            lairWindow.cancelShakeAutoClose()
-            lairWindow.isExternalDragActive = false
-        }
-        store.addFilesAsync(urls: urls)
-        return true
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -159,7 +115,29 @@ final class FilePileNSView: NSView, NSDraggingSource {
             let rot = rotations[offset % rotations.count]
             card.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
             card.layer?.position = CGPoint(x: x + totalW / 2, y: y + totalH / 2)
-            card.frameCenterRotation = rot
+            
+            if card.isNewCard {
+                card.isNewCard = false
+                card.alphaValue = 0.0
+                card.layer?.transform = CATransform3DMakeScale(1.15, 1.15, 1.0)
+                card.frameCenterRotation = rot
+                
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.3
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    card.animator().alphaValue = 1.0
+                    
+                    let scaleAnimation = CABasicAnimation(keyPath: "transform")
+                    scaleAnimation.fromValue = CATransform3DMakeScale(1.15, 1.15, 1.0)
+                    scaleAnimation.toValue = CATransform3DIdentity
+                    scaleAnimation.duration = 0.3
+                    scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    card.layer?.add(scaleAnimation, forKey: "dropScaleAnimation")
+                    card.layer?.transform = CATransform3DIdentity
+                }
+            } else {
+                card.frameCenterRotation = rot
+            }
 
             card.shadow = NSShadow()
             if card.item.isImage {

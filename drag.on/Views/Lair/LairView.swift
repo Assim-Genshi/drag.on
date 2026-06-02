@@ -40,25 +40,33 @@ struct LairView: View {
         ZStack {
             if store.items.isEmpty {
                 dashedContainerBorder
+                    .transition(.opacity)
             }
 
             if uiState.isManagementPanelActive {
                 managementPanelContent
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
-                mainLairContent
-
-                topBar
+                ZStack {
+                    mainLairContent
+                    topBar
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
         .background(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
-                .fill(mainSurface.opacity(0.35))
+                .fill(uiState.isExternalDragActive ? Color.cyanDream.opacity(LairConstants.Lair.dragActiveBgOpacity) : mainSurface.opacity(0.35))
         )
         .overlay(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
-                .stroke(borderColor, lineWidth: LairConstants.Convert.inputBorderWidth)
+                .stroke(
+                    uiState.isExternalDragActive ? Color.skyblue : borderColor,
+                    lineWidth: uiState.isExternalDragActive ? LairConstants.Lair.dragActiveBorderWidth : LairConstants.Lair.dragInactiveBorderWidth
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius))
+        .animation(.smooth(duration: 0.25), value: uiState.isExternalDragActive)
         .onAppear {
             SettingsOpener.shared.register {
                 openSettings()
@@ -71,7 +79,7 @@ struct LairView: View {
     private var dashedContainerBorder: some View {
         RoundedRectangle(cornerRadius: 14)
             .strokeBorder(
-                borderColor,
+                uiState.isExternalDragActive ? Color.cyanDream : borderColor,
                 style: StrokeStyle(lineWidth: 1.5, dash: [9, 4])
             )
             .padding(.horizontal, 12)
@@ -101,10 +109,10 @@ struct LairView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 44, height: 44)
-                        .foregroundStyle(content200)
+                        .foregroundStyle(uiState.isExternalDragActive ? Color.cyanDream : content200)
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(content200)
+                        .foregroundStyle(uiState.isExternalDragActive ? Color.cyanDream : content200)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 12)
@@ -124,7 +132,7 @@ struct LairView: View {
     private var bottomBar: some View {
         VStack(spacing: 8) {
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.snappy(duration: 0.3)) {
                     uiState.isManagementPanelActive = true
                 }
             }) {
@@ -146,7 +154,7 @@ struct LairView: View {
                             .foregroundStyle(.white)
                         Text("Convert")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(content100)
+                            .foregroundStyle(.white)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 32)
@@ -176,7 +184,10 @@ struct LairView: View {
     private var topBar: some View {
         VStack {
             HStack {
-                LairCircleButton(systemName: "xmark", action: onClose)
+                LairCircleButton(systemName: "xmark", action: {
+                    store.clearAll()
+                    onClose()
+                })
 
                 Spacer()
 
@@ -487,7 +498,7 @@ struct LairView: View {
             // Header bar
             HStack {
                 LairCircleButton(systemName: "chevron.left", action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(.snappy(duration: 0.3)) {
                         uiState.isManagementPanelActive = false
                     }
                 })
@@ -501,7 +512,10 @@ struct LairView: View {
                 
                 Spacer()
                 
-                LairCircleButton(systemName: "xmark", action: onClose)
+                LairCircleButton(systemName: "xmark", action: {
+                    store.clearAll()
+                    onClose()
+                })
                 .pointerCursor()
             }
             .padding(.horizontal, 14)
@@ -519,10 +533,12 @@ struct LairView: View {
                             store: store,
                             isSelected: uiState.selectedItemIDs.contains(item.id),
                             onSelectToggle: {
-                                if uiState.selectedItemIDs.contains(item.id) {
-                                    uiState.selectedItemIDs.remove(item.id)
-                                } else {
-                                    uiState.selectedItemIDs.insert(item.id)
+                                withAnimation(.snappy(duration: 0.25)) {
+                                    if uiState.selectedItemIDs.contains(item.id) {
+                                        uiState.selectedItemIDs.remove(item.id)
+                                    } else {
+                                        uiState.selectedItemIDs.insert(item.id)
+                                    }
                                 }
                             },
                             getSelectedItems: {
@@ -544,81 +560,90 @@ struct LairView: View {
     }
 
     private var managementActionBar: some View {
-        HStack(spacing: 10) {
+        ZStack {
             if uiState.selectedItemIDs.isEmpty {
                 Text("Select items to perform batch actions")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(content200)
                     .frame(maxWidth: .infinity)
                     .frame(height: 34)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
             } else {
-                Spacer()
+                HStack(spacing: 8) {
+                    Spacer()
 
-                ManagementButton(
-                    icon: Image(systemName: "minus.circle"),
-                    text: "Deselect",
-                    color: content100,
-                    action: {
-                        uiState.selectedItemIDs.removeAll()
-                    }
-                )
-                .pointerCursor()
-
-                ManagementButton(
-                    icon: Image(systemName: "arrow.up.right.square"),
-                    text: "Open",
-                    color: content100,
-                    action: {
-                        for item in selectedItems {
-                            if let url = item.resolveURL() {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                    }
-                )
-                .pointerCursor()
-
-                ManagementButton(
-                    icon: Image(systemName: "magnifyingglass"),
-                    text: "Reveal",
-                    color: content100,
-                    action: {
-                        let urls = selectedItems.compactMap { $0.resolveURL() }
-                        if !urls.isEmpty {
-                            NSWorkspace.shared.activateFileViewerSelecting(urls)
-                        }
-                    }
-                )
-                .pointerCursor()
-
-                if !selectedImages.isEmpty {
                     ManagementButton(
-                        icon: WandIcon(size: 11, weight: .bold),
-                        text: "Convert",
-                        color: .blue,
+                        icon: Image(systemName: "minus.circle"),
+                        text: "Deselect",
+                        color: content100,
                         action: {
-                            onConvertSelected(selectedItems)
+                            withAnimation(.snappy(duration: 0.25)) {
+                                uiState.selectedItemIDs.removeAll()
+                            }
                         }
                     )
                     .pointerCursor()
-                }
 
-                ManagementButton(
-                    icon: Image(systemName: "trash"),
-                    text: "Delete",
-                    color: .red,
-                    action: {
-                        for id in uiState.selectedItemIDs {
-                            store.removeFile(id: id)
+                    ManagementButton(
+                        icon: Image(systemName: "arrow.up.right.square"),
+                        text: "Open",
+                        color: content100,
+                        action: {
+                            for item in selectedItems {
+                                if let url = item.resolveURL() {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
                         }
-                        uiState.selectedItemIDs.removeAll()
-                    }
-                )
-                .pointerCursor()
+                    )
+                    .pointerCursor()
 
-                Spacer()
+                    ManagementButton(
+                        icon: Image(systemName: "magnifyingglass"),
+                        text: "Reveal",
+                        color: content100,
+                        action: {
+                            let urls = selectedItems.compactMap { $0.resolveURL() }
+                            if !urls.isEmpty {
+                                NSWorkspace.shared.activateFileViewerSelecting(urls)
+                            }
+                        }
+                    )
+                    .pointerCursor()
+
+                    if !selectedImages.isEmpty {
+                        ManagementButton(
+                            icon: WandIcon(size: 11, weight: .bold),
+                            text: "Convert",
+                            color: .blue,
+                            action: {
+                                onConvertSelected(selectedItems)
+                            }
+                        )
+                        .pointerCursor()
+                    }
+
+                    ManagementButton(
+                        icon: Image(systemName: "trash"),
+                        text: "Delete",
+                        color: .red,
+                        action: {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                for id in uiState.selectedItemIDs {
+                                    store.removeFile(id: id)
+                                }
+                                uiState.selectedItemIDs.removeAll()
+                            }
+                        }
+                    )
+                    .pointerCursor()
+
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
         }
+        .frame(height: 34)
         .padding(.horizontal, 14)
     }
 }

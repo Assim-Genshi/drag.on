@@ -8,4 +8,5 @@ import SwiftUI
 final class LairUIState {
     var isManagementPanelActive = false
     var selectedItemIDs = Set<UUID>()
+    var isExternalDragActive = false
 }

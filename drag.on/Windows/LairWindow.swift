@@ -10,15 +10,33 @@ final class LairWindow: NSPanel {
     private let uiState = LairUIState()
     private var hostingView: FirstMouseHostingView<LairView>?
     private var filePileView: FilePileNSView?
+    private var dropOverlay: DropOverlayView?
     private var convertPanel: ConvertPanel?
     private var cancellables = Set<AnyCancellable>()
     private var lastCompactModeValue: Bool = false
     private var wasShownByShake: Bool = false
 
     var onDidHide: (() -> Void)?
-    var isExternalDragActive: Bool = false
+    var isExternalDragActive: Bool = false {
+        didSet {
+            guard isExternalDragActive != oldValue else { return }
+            uiState.isExternalDragActive = isExternalDragActive
+            if isExternalDragActive {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+            }
+        }
+    }
     var isInternalDragActive: Bool = false {
         didSet {
+            guard isInternalDragActive != oldValue else { return }
+            
+            // Fade out the cards completely when dragging starts, fade back in when ends
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                filePileView?.animator().alphaValue = isInternalDragActive ? 0.0 : 1.0
+            }
+            
             if !isInternalDragActive {
                 if let pile = filePileView, pile.isReloadPending {
                     pile.reloadCards()
@@ -76,7 +94,7 @@ final class LairWindow: NSPanel {
         let currentWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
         let currentHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
 
-        let dropView = DropTargetView(store: store)
+        let dropView = DropTargetView()
         dropView.frame = NSRect(x: 0, y: 0, width: currentWidth, height: currentHeight)
         dropView.autoresizingMask = [.width, .height]
         contentView = dropView
@@ -111,15 +129,22 @@ final class LairWindow: NSPanel {
         hosting.autoresizingMask = [.width, .height]
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = .clear
-        hosting.enableDropForwarding(store: store)
         visualEffect.addSubview(hosting)
         self.hostingView = hosting
 
         let pile = FilePileNSView(store: store)
-        pile.autoresizingMask = [.width, .height]
+        pile.autoresizingMask = []
         visualEffect.addSubview(pile)
         self.filePileView = pile
         updateFilePileFrame()
+
+        // Add drop overlay as the topmost subview — sole drop target for the window.
+        // Sits above all cards and SwiftUI content; invisible to clicks.
+        let overlay = DropOverlayView(store: store)
+        overlay.frame = visualEffect.bounds
+        overlay.autoresizingMask = [.width, .height]
+        visualEffect.addSubview(overlay)
+        self.dropOverlay = overlay
 
         // No WindowDragHandleView added; background dragging is enabled window-wide.
     }
@@ -193,11 +218,27 @@ final class LairWindow: NSPanel {
         if isManagement {
             targetWidth = LairConstants.Lair.managementWidth
             targetHeight = LairConstants.Lair.managementHeight
-            filePileView?.isHidden = true
+            // Smoothly fade out the file pile view before hiding it
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                filePileView?.animator().alphaValue = 0.0
+            } completionHandler: { [weak self] in
+                if self?.uiState.isManagementPanelActive == true {
+                    self?.filePileView?.isHidden = true
+                }
+            }
         } else {
             targetWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
             targetHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
             filePileView?.isHidden = false
+            filePileView?.alphaValue = 0.0
+            // Smoothly fade the file pile back in
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                filePileView?.animator().alphaValue = 1.0
+            }
         }
         
         let currentFrame = frame
@@ -206,7 +247,7 @@ final class LairWindow: NSPanel {
         let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
         
         if currentFrame != newFrame {
-            setFrame(newFrame, display: true, animate: true)
+            self.setFrame(newFrame, display: true, animate: true)
         }
         
         updateFilePileFrame()

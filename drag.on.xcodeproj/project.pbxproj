@@ -39,16 +39,6 @@
 			path = drag.on;
 			sourceTree = "<group>";
 		};
-		796853C32F3E29890068B99A /* drag.onTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = drag.onTests;
-			sourceTree = "<group>";
-		};
-		796853CD2F3E29890068B99A /* drag.onUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = drag.onUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,8 +71,6 @@
 			isa = PBXGroup;
 			children = (
 				796853B12F3E29850068B99A /* drag.on */,
-				796853C32F3E29890068B99A /* drag.onTests */,
-				796853CD2F3E29890068B99A /* drag.onUITests */,
 				796853B02F3E29850068B99A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -136,9 +124,6 @@
 			dependencies = (
 				796853C22F3E29890068B99A /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				796853C32F3E29890068B99A /* drag.onTests */,
-			);
 			name = drag.onTests;
 			packageProductDependencies = (
 			);
@@ -158,9 +143,6 @@
 			);
 			dependencies = (
 				796853CC2F3E29890068B99A /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				796853CD2F3E29890068B99A /* drag.onUITests */,
 			);
 			name = drag.onUITests;
 			packageProductDependencies = (
@@ -401,13 +383,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = drag.on/App/drag_on.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
+				DEVELOPMENT_TEAM = 447KT3KGQ2;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Drag.on;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Drag.on needs access to your Desktop to read and write images.";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Drag.on needs access to your Documents folder to read and write files.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Drag.on needs access to your Downloads folder to save converted images.";
@@ -417,7 +405,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "1.0 beta";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-on";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -430,13 +418,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = drag.on/App/drag_on.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"drag.on/Preview Content\"";
+				DEVELOPMENT_TEAM = 447KT3KGQ2;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Drag.on;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Drag.on needs access to your Desktop to read and write images.";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Drag.on needs access to your Documents folder to read and write files.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Drag.on needs access to your Downloads folder to save converted images.";
@@ -446,7 +440,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = "1.0 beta";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-on";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -494,6 +488,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -509,6 +504,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yokai.drag-onUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";

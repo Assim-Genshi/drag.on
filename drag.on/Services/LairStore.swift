@@ -82,6 +82,34 @@ final class LairStore: FileStoring {
             }
         }
     }
+    
+    /// Adds a web URL placeholder and triggers background download.
+    func addWebDrop(url remoteURL: URL) {
+        let placeholder = FileItem.downloading(remoteURL: remoteURL)
+        items.append(placeholder)
+        
+        Task {
+            do {
+                let localURL = try await WebDropService.shared.downloadImage(from: remoteURL)
+                
+                await MainActor.run {
+                    if let index = items.firstIndex(where: { $0.id == placeholder.id }) {
+                        if let realItem = FileItem.from(url: localURL) {
+                            items[index] = realItem
+                            saveItems()
+                        } else {
+                            items.remove(at: index)
+                        }
+                    }
+                }
+            } catch {
+                Logger.lairStore.error("Failed to download web drop from \(remoteURL): \(error.localizedDescription)")
+                await MainActor.run {
+                    items.removeAll(where: { $0.id == placeholder.id })
+                }
+            }
+        }
+    }
 
     /// Remove a file from the lair by ID.
     func removeFile(id: UUID) {

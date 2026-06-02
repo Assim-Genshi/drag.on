@@ -1,4 +1,5 @@
 import Cocoa
+import os
 
 /// An NSView representing a single file thumbnail card.
 /// Handles drag initiation for native file dragging.
@@ -6,6 +7,7 @@ final class FileCardNSView: NSView, NSDraggingSource {
 
     let item: FileItem
     private let store: LairStore
+    var isNewCard = true
     private let imageView = NSImageView()
     private var dragOrigin: NSPoint?
     /// Cached thumbnail for sizing and drag previews.
@@ -25,10 +27,6 @@ final class FileCardNSView: NSView, NSDraggingSource {
         super.init(frame: .zero)
 
         wantsLayer = true
-        // Register as a drop destination so external drags landing on a card
-        // are accepted instead of silently blocked.
-        registerForDraggedTypes([.fileURL])
-
         if item.isImage {
             layer?.cornerRadius = 10
             layer?.backgroundColor = NSColor.white.withAlphaComponent(0.92).cgColor
@@ -46,6 +44,10 @@ final class FileCardNSView: NSView, NSDraggingSource {
         imageView.wantsLayer = true
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(imageView)
+        
+        if item.isDownloading {
+            self.alphaValue = 0.5
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -72,64 +74,6 @@ final class FileCardNSView: NSView, NSDraggingSource {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        // Once an external drag is detected, make all cards transparent so the
-        // underlying pile / drop-target views handle subsequent drag events.
-        if let lairWindow = window as? LairWindow, lairWindow.isExternalDragActive {
-            return nil
-        }
-        return super.hitTest(point)
-    }
-
-    // MARK: - Drop Destination (external drag acceptance)
-
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        // Reject drops that originate from our own file cards (outbound drags).
-        if sender.draggingSource is FileCardNSView { return [] }
-
-        guard sender.draggingPasteboard.canReadObject(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) else { return [] }
-
-        // Set the flag so that on subsequent hit-tests all cards become
-        // transparent, letting the pile handle the rest of the drag session.
-        if let lairWindow = self.window as? LairWindow {
-            lairWindow.isExternalDragActive = true
-        }
-        return .copy
-    }
-
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if sender.draggingSource is FileCardNSView { return [] }
-        return .copy
-    }
-
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        // Don't reset isExternalDragActive here — the drag is still in
-        // progress and will be picked up by the pile or drop-target view.
-    }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        // Fallback: if the drop lands directly on this card before the drag
-        // transitions to the pile, handle it by forwarding to the store.
-        guard let urls = sender.draggingPasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        ) as? [URL] else {
-            if let lairWindow = self.window as? LairWindow {
-                lairWindow.isExternalDragActive = false
-            }
-            return false
-        }
-        if let lairWindow = self.window as? LairWindow {
-            lairWindow.cancelShakeAutoClose()
-            lairWindow.isExternalDragActive = false
-        }
-        store.addFilesAsync(urls: urls)
-        return true
-    }
 
     // MARK: - Async Thumbnail Loading
 
@@ -208,6 +152,12 @@ final class FileCardNSView: NSView, NSDraggingSource {
         }
 
         guard !dragItems.isEmpty else { return }
+        
+        guard self.window != nil else {
+            Logger.fileItem.error("FileCardNSView: window is nil during drag initiation, aborting.")
+            return
+        }
+        
         beginDraggingSession(with: dragItems, event: event, source: self)
     }
 
@@ -233,10 +183,10 @@ final class FileCardNSView: NSView, NSDraggingSource {
             lairWindow.registerDraggingCard(self)
         }
 
-        // Dim the card to indicate it's being dragged — no window hiding
+        // Hide the card completely to indicate it's being dragged — no window hiding
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
-            self.animator().alphaValue = 0.3
+            self.animator().alphaValue = 0.0
         }
         
         // Only ignore mouse events if dragging outside the window
