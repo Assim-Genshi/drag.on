@@ -9,7 +9,10 @@ import Cocoa
 /// even when the Lair was not previously focused.
 final class DropTargetView: NSView {
 
-    init() {
+    private let store: LairStore
+
+    init(store: LairStore) {
+        self.store = store
         super.init(frame: .zero)
     }
 
@@ -19,4 +22,29 @@ final class DropTargetView: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard store.items.isEmpty else { return nil }
+        
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        
+        let pasteItem = NSMenuItem(
+            title: "Paste",
+            action: #selector(pasteFromClipboardCommand(_:)),
+            keyEquivalent: ""
+        )
+        pasteItem.target = self
+        if let pasteIcon = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil) {
+            pasteItem.image = pasteIcon
+        }
+        pasteItem.isEnabled = store.hasClipboardContent()
+        menu.addItem(pasteItem)
+        
+        return menu
+    }
+    
+    @objc private func pasteFromClipboardCommand(_ sender: Any) {
+        store.pasteFromClipboard()
+    }
 }

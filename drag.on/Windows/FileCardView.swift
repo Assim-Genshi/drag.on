@@ -4,6 +4,7 @@ import CoreImage
 
 /// An NSView representing a single file thumbnail card.
 /// Handles drag initiation for native file dragging.
+@MainActor
 final class FileCardNSView: NSView, NSDraggingSource {
 
     let item: FileItem
@@ -441,6 +442,18 @@ final class FileCardNSView: NSView, NSDraggingSource {
         removeItem.isEnabled = true
         menu.addItem(removeItem)
         
+        let pasteItem = NSMenuItem(
+            title: "Paste",
+            action: #selector(pasteFromClipboardCommand(_:)),
+            keyEquivalent: ""
+        )
+        pasteItem.target = self
+        if let pasteIcon = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil) {
+            pasteItem.image = pasteIcon
+        }
+        pasteItem.isEnabled = store.hasClipboardContent()
+        menu.addItem(pasteItem)
+        
         let clearItem = NSMenuItem(
             title: LairConstants.Lair.clearActionText,
             action: #selector(clearLairCommand(_:)),
@@ -458,6 +471,10 @@ final class FileCardNSView: NSView, NSDraggingSource {
 
     @objc private func removeFromLairCommand(_ sender: Any) {
         store.removeFile(id: item.id)
+    }
+
+    @objc private func pasteFromClipboardCommand(_ sender: Any) {
+        store.pasteFromClipboard()
     }
 
     @objc private func clearLairCommand(_ sender: Any) {

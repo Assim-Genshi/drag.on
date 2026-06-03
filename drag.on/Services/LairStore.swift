@@ -241,4 +241,135 @@ final class LairStore: FileStoring {
             saveItems()
         }
     }
+
+    /// Checks if there's any file URL, web URL, image data, or non-empty text in the clipboard.
+    func hasClipboardContent() -> Bool {
+        let pasteboard = NSPasteboard.general
+        
+        // 1. Check for file URLs
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [NSPasteboard.ReadingOptionKey.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+            return true
+        }
+        
+        // 2. Check for web URLs
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [NSPasteboard.ReadingOptionKey.urlReadingFileURLsOnly: false]) as? [URL], !urls.isEmpty {
+            let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
+            if !webURLs.isEmpty {
+                return true
+            }
+        }
+        
+        // 3. Check for image data
+        if NSImage.canInit(with: pasteboard) {
+            return true
+        }
+        
+        // 4. Check for text
+        if let string = pasteboard.string(forType: .string), !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        
+        return false
+    }
+
+    /// Paste file(s), web URL(s), image data, or text from the clipboard.
+    func pasteFromClipboard() {
+        let pasteboard = NSPasteboard.general
+        
+        // 1. Try file URLs first (local files)
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [NSPasteboard.ReadingOptionKey.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
+            addFilesAsync(urls: urls)
+            return
+        }
+        
+        // 2. Try web URLs (http/https)
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [NSPasteboard.ReadingOptionKey.urlReadingFileURLsOnly: false]) as? [URL], !urls.isEmpty {
+            let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
+            if !webURLs.isEmpty {
+                for url in webURLs {
+                    addWebDrop(url: url)
+                }
+                return
+            }
+        }
+        
+        // 3. Try string parsed as URL (e.g. if a URL string was copied as plain text)
+        if let string = pasteboard.string(forType: .string),
+           let url = URL(string: string.trimmingCharacters(in: .whitespacesAndNewlines)),
+           url.scheme == "http" || url.scheme == "https" {
+            addWebDrop(url: url)
+            return
+        }
+        
+        // 4. Try image data (TIFF/PNG)
+        if let image = NSImage(pasteboard: pasteboard) {
+            if let tiffData = image.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiffData),
+               let pngData = bitmap.representation(using: .png, properties: [:]) {
+                
+                let savedPath = UserDefaults.standard.string(forKey: "webDropLocationPath") ?? ""
+                var destinationDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+                if !savedPath.isEmpty {
+                    let url = URL(fileURLWithPath: savedPath)
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                        destinationDir = url
+                    }
+                }
+                
+                let baseName = "Pasted Image"
+                let ext = "png"
+                var filename = "\(baseName).\(ext)"
+                var destinationURL = destinationDir.appendingPathComponent(filename)
+                var counter = 1
+                
+                while FileManager.default.fileExists(atPath: destinationURL.path) {
+                    filename = "\(baseName) \(counter).\(ext)"
+                    destinationURL = destinationDir.appendingPathComponent(filename)
+                    counter += 1
+                }
+                
+                do {
+                    try pngData.write(to: destinationURL)
+                    addFile(url: destinationURL)
+                    return
+                } catch {
+                    Logger.lairStore.error("Failed to write clipboard image to \(destinationURL.path): \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        // 5. Try plain text
+        if let text = pasteboard.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let savedPath = UserDefaults.standard.string(forKey: "webDropLocationPath") ?? ""
+            var destinationDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+            if !savedPath.isEmpty {
+                let url = URL(fileURLWithPath: savedPath)
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                    destinationDir = url
+                }
+            }
+            
+            let baseName = "Pasted Text"
+            let ext = "txt"
+            var filename = "\(baseName).\(ext)"
+            var destinationURL = destinationDir.appendingPathComponent(filename)
+            var counter = 1
+            
+            while FileManager.default.fileExists(atPath: destinationURL.path) {
+                filename = "\(baseName) \(counter).\(ext)"
+                destinationURL = destinationDir.appendingPathComponent(filename)
+                counter += 1
+            }
+            
+            do {
+                try text.write(to: destinationURL, atomically: true, encoding: .utf8)
+                addFile(url: destinationURL)
+            } catch {
+                Logger.lairStore.error("Failed to write clipboard text to \(destinationURL.path): \(error.localizedDescription)")
+            }
+        }
+    }
 }
+

@@ -100,7 +100,7 @@ final class LairWindow: NSPanel {
         let currentWidth = isCompact ? LairConstants.Lair.compactWidth : LairConstants.Lair.width
         let currentHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
 
-        let dropView = DropTargetView()
+        let dropView = DropTargetView(store: store)
         dropView.frame = NSRect(x: 0, y: 0, width: currentWidth, height: currentHeight)
         dropView.autoresizingMask = [.width, .height]
         contentView = dropView
@@ -297,13 +297,8 @@ final class LairWindow: NSPanel {
             panelHeight = isCompact ? LairConstants.Lair.compactHeight : LairConstants.Lair.height
         }
 
-        var x = point.x - panelWidth / 2
-        var y = point.y - panelHeight - 20
-
-        x = max(screenFrame.minX + 10, min(x, screenFrame.maxX - panelWidth - 10))
-        y = max(screenFrame.minY + 10, min(y, screenFrame.maxY - panelHeight - 10))
-
-        setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
+        let newFrame = calculateWindowFrame(near: point, panelWidth: panelWidth, panelHeight: panelHeight, screenFrame: screenFrame)
+        setFrame(newFrame, display: true)
 
         alphaValue = 0
         orderFrontRegardless()
@@ -312,6 +307,112 @@ final class LairWindow: NSPanel {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             self.animator().alphaValue = 1
         }
+    }
+
+    private func calculateWindowFrame(near point: NSPoint, panelWidth: CGFloat, panelHeight: CGFloat, screenFrame: NSRect) -> NSRect {
+        let position = UserDefaults.standard.string(forKey: "summonPosition") ?? "Above"
+        let savedDistance = UserDefaults.standard.double(forKey: "summonDistance")
+        let distance = savedDistance == 0 ? 40.0 : savedDistance
+        
+        var x = point.x - panelWidth / 2
+        var y = point.y + distance
+        
+        switch position {
+        case "Above":
+            // Attempt to place above the cursor
+            let targetY = point.y + distance
+            if targetY + panelHeight <= screenFrame.maxY {
+                y = targetY
+                x = point.x - panelWidth / 2
+            } else {
+                // Does not fit above (on the very top), so open next to it (right or left)
+                let fitRightX = point.x + distance
+                let fitLeftX = point.x - panelWidth - distance
+                
+                // Choose right if it fits, otherwise left
+                if fitRightX + panelWidth <= screenFrame.maxX {
+                    x = fitRightX
+                } else if fitLeftX >= screenFrame.minX {
+                    x = fitLeftX
+                } else {
+                    // Fail-safe: choose side with more screen space
+                    let rightSpace = screenFrame.maxX - point.x
+                    let leftSpace = point.x - screenFrame.minX
+                    x = rightSpace > leftSpace ? fitRightX : fitLeftX
+                }
+                // Vertically center it relative to the cursor but clamp to top area of the screen
+                y = min(point.y - panelHeight / 2, screenFrame.maxY - panelHeight - 10)
+            }
+            
+        case "Below":
+            // Attempt to place below the cursor
+            let targetY = point.y - panelHeight - distance
+            if targetY >= screenFrame.minY {
+                y = targetY
+                x = point.x - panelWidth / 2
+            } else {
+                // Does not fit below, try above
+                let targetAboveY = point.y + distance
+                if targetAboveY + panelHeight <= screenFrame.maxY {
+                    y = targetAboveY
+                    x = point.x - panelWidth / 2
+                } else {
+                    // Otherwise fit next to it
+                    let fitRightX = point.x + distance
+                    let fitLeftX = point.x - panelWidth - distance
+                    x = (fitRightX + panelWidth <= screenFrame.maxX) ? fitRightX : fitLeftX
+                    y = max(point.y - panelHeight / 2, screenFrame.minY + 10)
+                }
+            }
+            
+        case "Left":
+            // Attempt to place to the left
+            let targetX = point.x - panelWidth - distance
+            if targetX >= screenFrame.minX {
+                x = targetX
+                y = point.y - panelHeight / 2
+            } else {
+                // Try right
+                let targetRightX = point.x + distance
+                if targetRightX + panelWidth <= screenFrame.maxX {
+                    x = targetRightX
+                    y = point.y - panelHeight / 2
+                } else {
+                    // Center horizontally and place above
+                    x = max(screenFrame.minX + 10, point.x - panelWidth / 2)
+                    y = point.y + distance
+                }
+            }
+            
+        case "Right":
+            // Attempt to place to the right
+            let targetX = point.x + distance
+            if targetX + panelWidth <= screenFrame.maxX {
+                x = targetX
+                y = point.y - panelHeight / 2
+            } else {
+                // Try left
+                let targetLeftX = point.x - panelWidth - distance
+                if targetLeftX >= screenFrame.minX {
+                    x = targetLeftX
+                    y = point.y - panelHeight / 2
+                } else {
+                    // Center horizontally and place below
+                    x = max(screenFrame.minX + 10, point.x - panelWidth / 2)
+                    y = point.y - panelHeight - distance
+                }
+            }
+            
+        default:
+            y = point.y + distance
+            x = point.x - panelWidth / 2
+        }
+        
+        // Final clamp to screen boundaries to guarantee it never goes off-screen
+        x = max(screenFrame.minX + 10, min(x, screenFrame.maxX - panelWidth - 10))
+        y = max(screenFrame.minY + 10, min(y, screenFrame.maxY - panelHeight - 10))
+        
+        return NSRect(x: x, y: y, width: panelWidth, height: panelHeight)
     }
 
     private func setupUserDefaultsObserver() {

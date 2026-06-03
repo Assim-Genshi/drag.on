@@ -83,6 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showItem.target = self
         menu.addItem(showItem)
 
+        let clipboardItem = NSMenuItem(
+            title: "Open Lair from Clipboard",
+            action: #selector(openLairFromClipboard),
+            keyEquivalent: "v"
+        )
+        clipboardItem.keyEquivalentModifierMask = [.command, .shift]
+        clipboardItem.target = self
+        menu.addItem(clipboardItem)
+
         let clearItem = NSMenuItem(
             title: "Clear Lair",
             action: #selector(clearLair),
@@ -130,6 +139,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lairWindow?.toggle(near: mouseLocation)
     }
 
+    @objc private func openLairFromClipboard() {
+        store.clearAll()
+        store.pasteFromClipboard()
+        let mouseLocation = NSEvent.mouseLocation
+        lairWindow?.show(near: mouseLocation)
+    }
+
     @objc private func clearLair() {
         store.clearAll()
     }
@@ -166,6 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(restorePreviousLair) {
             return !store.previousItems.isEmpty
+        }
+        if menuItem.action == #selector(openLairFromClipboard) {
+            return store.hasClipboardContent()
         }
         return true
     }

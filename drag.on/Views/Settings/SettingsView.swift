@@ -106,6 +106,8 @@ struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme: String = "System"
     @AppStorage("preferredTerminal") private var preferredTerminal: String = "Terminal.app"
     @AppStorage("webDropLocationPath") private var webDropLocationPath: String = ""
+    @AppStorage("summonPosition") private var summonPosition: String = "Above"
+    @AppStorage("summonDistance") private var summonDistance: Double = 40.0
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -137,17 +139,22 @@ struct SettingsView: View {
                 VStack(spacing: 12) {
                     Spacer()
                     HStack {
-                    VStack(spacing: 4) {
                         Spacer()
-                            .frame(height: 80)
+
+                    VStack(spacing: 4) {
+                        
                         
                         Text("Version 0.1 beta")
-                            .font(.system(size: 20, weight: .regular))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(primaryTextColor)
                             .padding(.bottom, 18)
+                            .padding(.trailing, 18)
                             .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 0)
-                    }
+                        
                         Spacer()
+                            .frame(height: 80)
+                    }
+                       
                     }
                     .background(
                         ZStack(alignment: .top) {
@@ -201,6 +208,25 @@ struct SettingsView: View {
                                 Slider(value: $shakeSensitivity, in: 2...5, step: 1)
                                     .frame(width: 80)
                                 Text("\(Int(shakeSensitivity))")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(primaryTextColor)
+                            }
+                        }
+                        
+                        row(title: "Summon Position", subtitle: "Where Lair appears relative to cursor") {
+                            menuInput(icon: "cursorarrow", text: summonPositionDisplayName) {
+                                Button("Above Cursor") { summonPosition = "Above" }
+                                Button("Below Cursor") { summonPosition = "Below" }
+                                Button("Left of Cursor") { summonPosition = "Left" }
+                                Button("Right of Cursor") { summonPosition = "Right" }
+                            }
+                        }
+                        
+                        row(title: "Summon Distance", subtitle: "Gap between cursor and Lair") {
+                            HStack(spacing: 8) {
+                                Slider(value: $summonDistance, in: 10...100, step: 5)
+                                    .frame(width: 80)
+                                Text("\(Int(summonDistance)) px")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(primaryTextColor)
                             }
@@ -385,6 +411,16 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
+
+    private var summonPositionDisplayName: String {
+        switch summonPosition {
+        case "Above": return "Above Cursor"
+        case "Below": return "Below Cursor"
+        case "Left": return "Left of Cursor"
+        case "Right": return "Right of Cursor"
+        default: return "Above Cursor"
+        }
+    }
 
     private var downloadLocationDisplayName: String {
         if webDropLocationPath.isEmpty {

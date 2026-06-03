@@ -22,6 +22,13 @@ final class FilePileNSView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { true }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if cardViews.isEmpty {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
     // MARK: - Card Management
 
     func reloadCards() {
