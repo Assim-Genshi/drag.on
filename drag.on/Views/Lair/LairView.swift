@@ -62,7 +62,7 @@ struct LairView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
-                .fill(uiState.isExternalDragActive ? Color.cyanDream.opacity(LairConstants.Lair.dragActiveBgOpacity) : mainSurface.opacity(0.35))
+                .fill(uiState.isExternalDragActive ? Color.cyanDream.opacity(LairConstants.Lair.dragActiveBgOpacity) : mainSurface.opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
@@ -83,7 +83,7 @@ struct LairView: View {
     // MARK: - Dashed Container Border
 
     private var dashedContainerBorder: some View {
-        RoundedRectangle(cornerRadius: 14)
+        RoundedRectangle(cornerRadius: 22)
             .strokeBorder(
                 uiState.isExternalDragActive ? Color.cyanDream : borderColor,
                 style: StrokeStyle(lineWidth: 1.5, dash: [9, 4])

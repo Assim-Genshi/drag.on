@@ -155,10 +155,12 @@ final class DropOverlayView: NSView {
         hideGlow()
 
         let pb = sender.draggingPasteboard
+        let windowPoint = sender.draggingLocation
 
         // 1. Try local file URLs first
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             if let lairWindow = window as? LairWindow {
+                lairWindow.lastDropLocation = windowPoint
                 lairWindow.cancelShakeAutoClose()
                 lairWindow.isExternalDragActive = false
             }
@@ -171,6 +173,7 @@ final class DropOverlayView: NSView {
             let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
             if !webURLs.isEmpty {
                 if let lairWindow = window as? LairWindow {
+                    lairWindow.lastDropLocation = windowPoint
                     lairWindow.cancelShakeAutoClose()
                     lairWindow.isExternalDragActive = false
                 }
@@ -186,6 +189,7 @@ final class DropOverlayView: NSView {
             let stringURLs = strings.compactMap { URL(string: $0) }.filter { $0.scheme == "http" || $0.scheme == "https" }
             if !stringURLs.isEmpty {
                 if let lairWindow = window as? LairWindow {
+                    lairWindow.lastDropLocation = windowPoint
                     lairWindow.cancelShakeAutoClose()
                     lairWindow.isExternalDragActive = false
                 }

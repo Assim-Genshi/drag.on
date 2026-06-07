@@ -18,6 +18,7 @@ final class LairWindow: NSPanel {
     private var lastItemIds: [UUID] = []
 
     var onDidHide: (() -> Void)?
+    var lastDropLocation: NSPoint?
     var isExternalDragActive: Bool = false {
         didSet {
             guard isExternalDragActive != oldValue else { return }

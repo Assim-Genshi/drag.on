@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		796A80832FCF28AE00E2196F /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 796A80822FCF28AE00E2196F /* LaunchAtLogin */; };
+		797568972FD1BDEE00941F7E /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 797568962FD1BDEE00941F7E /* KeyboardShortcuts */; };
 		79BE98692FC2A30E00C194DF /* WebP in Frameworks */ = {isa = PBXBuildFile; productRef = 792B8D6A2FC29F9E00BC8880 /* WebP */; };
 /* End PBXBuildFile section */
 
@@ -49,6 +50,7 @@
 			files = (
 				796A80832FCF28AE00E2196F /* LaunchAtLogin in Frameworks */,
 				79BE98692FC2A30E00C194DF /* WebP in Frameworks */,
+				797568972FD1BDEE00941F7E /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				796853B12F3E29850068B99A /* drag.on */,
+				797568952FD1BDEE00941F7E /* Frameworks */,
 				796853B02F3E29850068B99A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,6 +88,13 @@
 				796853CA2F3E29890068B99A /* drag.onUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		797568952FD1BDEE00941F7E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -109,6 +119,7 @@
 			packageProductDependencies = (
 				796A80822FCF28AE00E2196F /* LaunchAtLogin */,
 				792B8D6A2FC29F9E00BC8880 /* WebP */,
+				797568962FD1BDEE00941F7E /* KeyboardShortcuts */,
 			);
 			productName = drag.on;
 			productReference = 796853AF2F3E29850068B99A /* drag.on.app */;
@@ -604,6 +615,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 796A80802FCF28AE00E2196F /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
+		};
+		797568962FD1BDEE00941F7E /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 796A807F2FCF26EB00E2196F /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

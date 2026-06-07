@@ -79,6 +79,13 @@ final class FilePileNSView: NSView, NSDraggingSource {
         let itemsCount = cardViews.count
         guard itemsCount > 0 else { return }
 
+        var dropLocation: NSPoint? = nil
+        if let lairWindow = self.window as? LairWindow, let lastDrop = lairWindow.lastDropLocation {
+            dropLocation = lastDrop
+            lairWindow.lastDropLocation = nil
+        }
+        let localDropPoint = dropLocation.map { self.convert($0, from: nil) }
+
         let isCompact = UserDefaults.standard.bool(forKey: "compactMode")
         let isConvertShown = store.hasImages && !isCompact
         
@@ -135,23 +142,45 @@ final class FilePileNSView: NSView, NSDraggingSource {
             
             if card.isNewCard {
                 card.isNewCard = false
-                card.alphaValue = 0.0
                 
                 // Set the final rotation so scale animation builds upon it
                 card.frameCenterRotation = rot
                 
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.3
-                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    card.animator().alphaValue = 1.0
-                    
-                    // Animate only the scale component to preserve base rotation
-                    let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
-                    scaleAnimation.fromValue = 1.15
-                    scaleAnimation.toValue = 1.0
-                    scaleAnimation.duration = 0.3
-                    scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    card.layer?.add(scaleAnimation, forKey: "dropScaleAnimation")
+                let delay = Double(itemsCount - 1 - index) * 0.035
+                let currentTime = CACurrentMediaTime()
+                let beginTime = currentTime + delay
+                
+                // 1. Opacity Animation
+                let opacityAnimation = CABasicAnimation(keyPath: "opacity")
+                opacityAnimation.fromValue = 0.0
+                opacityAnimation.toValue = 1.0
+                opacityAnimation.duration = 0.25
+                opacityAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                opacityAnimation.beginTime = beginTime
+                opacityAnimation.fillMode = .both
+                
+                // 2. Scale Animation
+                let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
+                scaleAnimation.fromValue = 1.15
+                scaleAnimation.toValue = 1.0
+                scaleAnimation.duration = 0.3
+                scaleAnimation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                scaleAnimation.beginTime = beginTime
+                scaleAnimation.fillMode = .both
+                
+                card.alphaValue = 1.0
+                card.wantsLayer = true
+                card.layer?.opacity = 1.0
+                
+                card.layer?.add(opacityAnimation, forKey: "dropAlphaAnimation")
+                card.layer?.add(scaleAnimation, forKey: "dropScaleAnimation")
+                
+                // 3. Bounce/Slide Animation
+                if let dropPoint = localDropPoint {
+                    let cardCenter = CGPoint(x: x + totalW / 2, y: y + totalH / 2)
+                    let offsetX = dropPoint.x - cardCenter.x
+                    let offsetY = dropPoint.y - cardCenter.y
+                    card.performBounceAnimation(offsetX: offsetX, offsetY: offsetY, delay: delay)
                 }
             } else {
                 card.frameCenterRotation = rot

@@ -54,6 +54,7 @@ struct CapsuleSlider: View {
                 // 1. Track Background
                 RoundedRectangle(cornerRadius: 10)
                     .fill(.thinMaterial)
+                    .topHighlightBorder()
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(
@@ -85,27 +86,6 @@ struct CapsuleSlider: View {
                     .strokeBorder(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth)
                     .frame(width: max(0, width * CGFloat(value)))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .overlay(
-                            Group {
-                                if colorScheme == .light {
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .strokeBorder(
-                                            LinearGradient(
-                                                colors: [
-                                                    .white.opacity(0.3),  // bright top highlight
-                                                    .clear,
-                                                    .clear,
-                                                    .clear
-                                                ],
-                                                startPoint: .top,
-                                                endPoint: .bottom
-                                            ),
-                                            lineWidth: 2
-                                        )
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                }
-                            }
-                        )
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     
                     

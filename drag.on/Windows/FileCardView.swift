@@ -364,12 +364,16 @@ final class FileCardNSView: NSView, NSDraggingSource {
         layer.filters = nil
         layer.shouldRasterize = false
         
+        let enableCloud = UserDefaults.standard.object(forKey: "enableCloudAnimation") as? Bool ?? true
+        
         // Load the 5 cloud animation frames from assets
         var frames: [CGImage] = []
-        for i in 1...5 {
-            if let image = NSImage(named: "cloud animation frame \(i)"),
-               let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                frames.append(cgImage)
+        if enableCloud {
+            for i in 1...5 {
+                if let image = NSImage(named: "cloud animation frame \(i)"),
+                   let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                    frames.append(cgImage)
+                }
             }
         }
         
@@ -379,16 +383,22 @@ final class FileCardNSView: NSView, NSDraggingSource {
         layer.position = CGPoint(x: cardFrame.midX, y: cardFrame.midY)
         
         // Create a square overlay view centered on the card for the cloud puff
-        let side = min(self.bounds.width, self.bounds.height)
-        let overlayView = NSImageView(frame: NSRect(
-            x: (self.bounds.width - side) / 2,
-            y: (self.bounds.height - side) / 2,
-            width: side,
-            height: side
-        ))
-        overlayView.imageScaling = .scaleProportionallyUpOrDown
-        overlayView.wantsLayer = true
-        self.addSubview(overlayView)
+        let overlayView: NSImageView?
+        if enableCloud && !frames.isEmpty {
+            let side = min(self.bounds.width, self.bounds.height)
+            let view = NSImageView(frame: NSRect(
+                x: (self.bounds.width - side) / 2,
+                y: (self.bounds.height - side) / 2,
+                width: side,
+                height: side
+            ))
+            view.imageScaling = .scaleProportionallyUpOrDown
+            view.wantsLayer = true
+            self.addSubview(view)
+            overlayView = view
+        } else {
+            overlayView = nil
+        }
         
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.25
@@ -408,18 +418,18 @@ final class FileCardNSView: NSView, NSDraggingSource {
             layer.add(scaleAnim, forKey: "clearScale")
             
             // Play the 5-frame cloud animation on the overlay layer
-            if !frames.isEmpty {
+            if let overlay = overlayView, !frames.isEmpty {
                 let frameAnim = CAKeyframeAnimation(keyPath: "contents")
                 frameAnim.values = frames
                 frameAnim.duration = 0.25
                 frameAnim.calculationMode = .discrete
                 frameAnim.fillMode = .forwards
                 frameAnim.isRemovedOnCompletion = false
-                overlayView.layer?.add(frameAnim, forKey: "cloudAnimation")
+                overlay.layer?.add(frameAnim, forKey: "cloudAnimation")
             }
             
         }, completionHandler: {
-            overlayView.removeFromSuperview()
+            overlayView?.removeFromSuperview()
             completion()
         })
     }

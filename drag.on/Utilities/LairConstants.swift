@@ -48,7 +48,7 @@ struct LairConstants {
     struct Lair {
         static let width: CGFloat = 260
         static let height: CGFloat = 280
-        static let cornerRadius: CGFloat = 26
+        static let cornerRadius: CGFloat = 34
         
         // File Pile Position
         static let filePileX: CGFloat = 12
@@ -91,7 +91,7 @@ struct LairConstants {
         static let compressZipActionIcon = "archivebox"
         
         static let convertActionText = "Convert…"
-        static let convertActionIcon = "bubbles.and.sparkles.fill"
+        static let convertActionIcon = "sparkle"
         
         static let openInTerminalActionText = "Open in Terminal"
         static let openInTerminalActionIcon = "terminal"
@@ -130,3 +130,46 @@ struct LairConstants {
         static let inputHeight: CGFloat = 42 // Centralized input field height
     }
 }
+
+// MARK: - SwiftUI Helpers & View Modifiers
+
+import SwiftUI
+
+/// A view modifier that applies a premium top highlight border to a rounded rectangle shape.
+struct TopHighlightBorder: ViewModifier {
+    let cornerRadius: CGFloat
+    let lineWidth: CGFloat
+    
+    @Environment(\.colorScheme) private var colorScheme
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                colorScheme == .light
+                                ? Color.white.opacity(0.6)
+                                : Color.white.opacity(0.12),  // bright top highlight
+                                Color.clear,
+                                Color.clear,
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: colorScheme == .dark ? 1 : lineWidth
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            )
+    }
+}
+
+extension View {
+    /// Applies a premium top highlight border using a gradient, useful for card/input designs.
+    func topHighlightBorder(cornerRadius: CGFloat = 10, lineWidth: CGFloat = 2) -> some View {
+        modifier(TopHighlightBorder(cornerRadius: cornerRadius, lineWidth: lineWidth))
+    }
+}
+

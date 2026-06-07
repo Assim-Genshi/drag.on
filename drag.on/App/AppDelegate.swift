@@ -1,5 +1,6 @@
 import Cocoa
 import os
+import KeyboardShortcuts
 
 /// Main application delegate managing the Lair window, drag monitoring, and menu bar.
 @MainActor
@@ -44,7 +45,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
  
         dragMonitor.startMonitoring()
  
+        // Listen to global keyboard shortcut to toggle Lair
+        KeyboardShortcuts.onKeyUp(for: .toggleLair) { [weak self] in
+            self?.toggleLair()
+        }
+
+        // Listen to global keyboard shortcut to open Lair from clipboard
+        KeyboardShortcuts.onKeyUp(for: .openFromClipboard) { [weak self] in
+            self?.openLairFromClipboard()
+        }
+
+        // Listen to global keyboard shortcut to restore previous Lair
+        KeyboardShortcuts.onKeyUp(for: .previousLair) { [weak self] in
+            self?.restorePreviousLair()
+        }
+
         setupStatusItem()
+        
+        // Present onboarding flow on first launch
+        OnboardingManager.shared.showTourIfNeeded()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -77,9 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let showItem = NSMenuItem(
             title: "Show Lair",
             action: #selector(toggleLair),
-            keyEquivalent: "s"
+            keyEquivalent: "l"
         )
-        showItem.keyEquivalentModifierMask = [.command, .shift]
+        showItem.keyEquivalentModifierMask = [.option, .command]
         showItem.target = self
         menu.addItem(showItem)
 
@@ -88,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(openLairFromClipboard),
             keyEquivalent: "v"
         )
-        clipboardItem.keyEquivalentModifierMask = [.command, .shift]
+        clipboardItem.keyEquivalentModifierMask = [.option, .command]
         clipboardItem.target = self
         menu.addItem(clipboardItem)
 
@@ -105,11 +124,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(restorePreviousLair),
             keyEquivalent: "p"
         )
-        restoreItem.keyEquivalentModifierMask = [.command, .shift]
+        restoreItem.keyEquivalentModifierMask = [.option, .command]
         restoreItem.target = self
         menu.addItem(restoreItem)
 
         menu.addItem(NSMenuItem.separator())
+
+        let tourItem = NSMenuItem(
+            title: "Show Tour…",
+            action: #selector(openOnboardingTour),
+            keyEquivalent: ""
+        )
+        tourItem.target = self
+        menu.addItem(tourItem)
 
         let settingsItem = NSMenuItem(
             title: "Settings…",
@@ -163,6 +190,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
+    }
+
+    @objc private func openOnboardingTour() {
+        OnboardingManager.shared.showTour()
     }
 
     @objc private func quitApp() {

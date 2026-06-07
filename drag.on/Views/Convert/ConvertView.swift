@@ -31,6 +31,33 @@ struct ConvertView: View {
         let savedFormat = UserDefaults.standard.string(forKey: "defaultFormat") ?? "WebP"
         let initialFormat = ImageFormat.allCases.first(where: { $0.rawValue == savedFormat }) ?? .webp
         self._selectedFormat = State(initialValue: initialFormat)
+        
+        let mode = UserDefaults.standard.string(forKey: "defaultOutputMode") ?? "sameFolder"
+        let customPath = UserDefaults.standard.string(forKey: "customOutputDirectoryPath") ?? ""
+        
+        let initialUseCustom: Bool
+        let initialCustomDir: URL?
+        
+        switch mode {
+        case "downloads":
+            initialUseCustom = true
+            initialCustomDir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
+        case "custom":
+            if !customPath.isEmpty {
+                initialUseCustom = true
+                initialCustomDir = URL(fileURLWithPath: customPath)
+            } else {
+                initialUseCustom = false
+                initialCustomDir = nil
+            }
+        default: // "sameFolder"
+            initialUseCustom = false
+            initialCustomDir = nil
+        }
+        
+        self._useCustomOutput = State(initialValue: initialUseCustom)
+        self._customOutputDir = State(initialValue: initialCustomDir)
     }
 
     @State private var isHoveringConvert = false
@@ -106,7 +133,7 @@ struct ConvertView: View {
         .clipShape(RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius))
         .onAppear {
             let imageItems = imagesToConvert
-            converter.previewOutputDirectory(for: imageItems, customDir: nil)
+            converter.previewOutputDirectory(for: imageItems, customDir: useCustomOutput ? customOutputDir : nil)
         }
     }
 
@@ -175,21 +202,7 @@ struct ConvertView: View {
                                 }
                             }
                         } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "doc.badge.gearshape")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(accentColor)
-                                Text(selectedFormat.rawValue)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(primaryTextColor)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(secondaryTextColor)
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(height: LairConstants.Convert.inputHeight)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(surfeceColor))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth))
+                            SelectorInputLabel(selectedFormat.rawValue, systemImage: "doc.badge.gearshape", hasShadow: true, accentColor: accentColor)
                         }
                         .buttonStyle(.plain)
                         .fixedSize()
@@ -235,20 +248,9 @@ struct ConvertView: View {
                         Spacer()
                         
                         Button(action: pickCustomFolder) {
-                            HStack(spacing: 8) {
-                                Image(systemName: outputIcon)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(accentColor)
-                                Text(outputLabel)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(primaryTextColor.opacity(0.85))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
+                            SelectorInputLabel(outputLabel, showChevron: false, hasShadow: true) {
+                                FolderIconPreviewView(url: outputFolderURL)
                             }
-                            .padding(.horizontal, 12)
-                            .frame(height: LairConstants.Convert.inputHeight)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(surfeceColor))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth))
                         }
                         .buttonStyle(.plain)
                         .fixedSize()
@@ -355,6 +357,13 @@ struct ConvertView: View {
         converter.resolvedOutput?.isWebDrop == true && !useCustomOutput
     }
 
+    private var outputFolderURL: URL? {
+        if useCustomOutput, let dir = customOutputDir {
+            return dir
+        }
+        return converter.resolvedOutput?.url
+    }
+
     private func pickCustomFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -366,6 +375,7 @@ struct ConvertView: View {
         if panel.runModal() == .OK, let url = panel.url {
             customOutputDir = url
             useCustomOutput = true
+            converter.previewOutputDirectory(for: imagesToConvert, customDir: url)
         }
     }
 
