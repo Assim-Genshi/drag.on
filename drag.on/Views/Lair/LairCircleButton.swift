@@ -32,6 +32,7 @@ struct LairCircleButton: View {
         ZStack {
             Circle()
                 .fill(Color("Secondary-surfece").opacity(LairConstants.Lair.buttonBackgroundOpacity))
+                .background(Circle().fill(.ultraThinMaterial))
                 .frame(width: 30, height: 30)
 
             Image(systemName: systemName)

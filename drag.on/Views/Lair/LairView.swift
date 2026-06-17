@@ -37,6 +37,9 @@ struct LairView: View {
         Color("content-200")
     }
 
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
+
     var body: some View {
         ZStack {
             if store.items.isEmpty {
@@ -62,16 +65,17 @@ struct LairView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
-                .fill(uiState.isExternalDragActive ? Color.cyanDream.opacity(LairConstants.Lair.dragActiveBgOpacity) : mainSurface.opacity(0.5))
+                .fill(uiState.isExternalDragActive ? secondaryAccent.opacity(LairConstants.Lair.dragActiveBgOpacity) : mainSurface.opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius)
                 .stroke(
-                    uiState.isExternalDragActive ? Color.skyblue : borderColor,
+                    uiState.isExternalDragActive ? mainAccent : borderColor,
                     lineWidth: uiState.isExternalDragActive ? LairConstants.Lair.dragActiveBorderWidth : LairConstants.Lair.dragInactiveBorderWidth
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: LairConstants.Lair.cornerRadius))
+        .tint(mainAccent)
         .animation(.smooth(duration: 0.25), value: uiState.isExternalDragActive)
         .onAppear {
             SettingsOpener.shared.register {
@@ -85,7 +89,7 @@ struct LairView: View {
     private var dashedContainerBorder: some View {
         RoundedRectangle(cornerRadius: 22)
             .strokeBorder(
-                uiState.isExternalDragActive ? Color.cyanDream : borderColor,
+                uiState.isExternalDragActive ? secondaryAccent : borderColor,
                 style: StrokeStyle(lineWidth: 1.5, dash: [9, 4])
             )
             .padding(.horizontal, 12)
@@ -115,10 +119,10 @@ struct LairView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 44, height: 44)
-                        .foregroundStyle(uiState.isExternalDragActive ? Color.cyanDream : content200)
+                        .foregroundStyle(uiState.isExternalDragActive ? secondaryAccent : content200)
                     Text("Drop Artifact here")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(uiState.isExternalDragActive ? Color.cyanDream : content200)
+                        .foregroundStyle(uiState.isExternalDragActive ? secondaryAccent : content200)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 12)
@@ -175,11 +179,11 @@ struct LairView: View {
                     .frame(height: 32)
                     .background(
                         Capsule()
-                            .fill(.skyblue)
+                            .fill(mainAccent)
                     )
                     .overlay(
                         Capsule()
-                            .stroke(.cyanDream, lineWidth: 1.0)
+                            .stroke(secondaryAccent, lineWidth: 1.0)
                     )
                     .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
                 }

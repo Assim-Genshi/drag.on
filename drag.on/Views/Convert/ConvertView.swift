@@ -79,9 +79,7 @@ struct ConvertView: View {
         Color("content-200")
     }
 
-    private var accentColor: Color {
-        Color(red: 0.0, green: 0.55, blue: 1.0)
-    }
+    private var accentColor: Color { mainAccent }
 
     private var cardBackground: Color {
         Color("Secondary-surfece")
@@ -90,6 +88,9 @@ struct ConvertView: View {
     private var cardBorder: Color {
         Color("border-color")
     }
+
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
 
     private var imagesToConvert: [FileItem] {
         (itemsToConvert ?? store.items).filter(\.isImage)
@@ -108,6 +109,7 @@ struct ConvertView: View {
                 ConvertFailureView(message: message, partialResults: partialResults, onDismiss: dismiss)
             }
         }
+        .tint(mainAccent)
         .frame(width: LairConstants.Convert.width, height: LairConstants.Convert.height)
         .background(
             ZStack(alignment: .top) {
@@ -297,8 +299,8 @@ struct ConvertView: View {
                         Capsule().fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(.cyanDream),
-                                    Color(.skyblue),
+                                    secondaryAccent,
+                                    mainAccent,
                                 ]),
                                 startPoint: .bottom,
                                 endPoint: .top
@@ -311,8 +313,8 @@ struct ConvertView: View {
                                 LinearGradient(
                                     gradient: Gradient(stops: [
                                         .init(color: Color.white.opacity(0.85), location: 0.0),
-                                        .init(color: Color(red: 0.1, green: 0.45, blue: 0.8, opacity: 0.45), location: 0.5),
-                                        .init(color: Color(red: 0.4, green: 0.75, blue: 0.95, opacity: 0.65), location: 1.0)
+                                        .init(color: mainAccent, location: 0.5),
+                                        .init(color: mainAccent.opacity(0.2), location: 1.0)
                                     ]),
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -326,7 +328,7 @@ struct ConvertView: View {
                             .blendMode(.screen)
                             .allowsHitTesting(false)
                     )
-                    .shadow(color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35), radius: 12, x: 0, y: 6)
+                    .shadow(color: mainAccent.opacity(0.35), radius: 12, x: 0, y: 6)
                     .scaleEffect(isHoveringConvert ? 1.03 : 1.0)
                 }
                 .buttonStyle(.plain)

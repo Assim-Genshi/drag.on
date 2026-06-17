@@ -10,6 +10,8 @@ struct FileGridCell: View {
 
     @State private var isHovered = false
     @State private var thumbnail: NSImage?
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
 
     init(
         item: FileItem,
@@ -72,23 +74,12 @@ struct FileGridCell: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.white.opacity(0.12) : (isHovered ? Color.white.opacity(0.06) : Color.clear))
+                    .fill(isSelected ? mainAccent.opacity(0.5) : (isHovered ? Color.white.opacity(0.06) : Color.clear))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.white.opacity(0.24) : Color.clear, lineWidth: 1.0)
+                    .stroke(isSelected ? secondaryAccent : Color.clear, lineWidth: 1.0)
             )
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? Color.blue : content200.opacity(0.4))
-                        .padding(6)
-                }
-                Spacer()
-            }
 
             DragSourceHelper(
                 item: item,

@@ -19,13 +19,13 @@ struct ConvertProgressView: View {
         Color("content-200")
     }
 
-    private var accentColor: Color {
-        Color(red: 0.0, green: 0.55, blue: 1.0)
-    }
+    private var accentColor: Color { mainAccent }
 
     private var cardBackground: Color {
         Color("Secondary-surfece")
     }
+
+    @AppAccent(.main) private var mainAccent
 
     var body: some View {
         VStack(spacing: 16) {

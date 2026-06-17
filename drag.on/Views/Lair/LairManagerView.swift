@@ -58,7 +58,7 @@ struct LairManagerView: View {
                 LazyVGrid(columns: [
                     GridItem(.adaptive(minimum: 95, maximum: 110), spacing: 10)
                 ], spacing: 10) {
-                    ForEach(store.items) { item in
+                    ForEach(store.items.reversed()) { item in
                         FileGridCell(
                             item: item,
                             store: store,

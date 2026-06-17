@@ -18,6 +18,7 @@ struct FileCountLabel: View {
         .background(
             Capsule()
                 .fill(Color("Secondary-surfece").opacity(LairConstants.Lair.buttonBackgroundOpacity))
+                .background(Capsule().fill(.ultraThinMaterial))
         )
         .overlay(
             Capsule()

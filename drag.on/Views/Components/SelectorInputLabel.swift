@@ -53,7 +53,7 @@ struct SelectorInputLabel<StartContent: View>: View {
         _ title: String,
         showChevron: Bool = true,
         hasShadow: Bool = false,
-        accentColor: Color = Color("skyblue"),
+        accentColor: Color = Color.mainAccent,
         @ViewBuilder startContent: () -> StartContent
     ) {
         self.title = title
@@ -118,7 +118,7 @@ extension SelectorInputLabel where StartContent == SelectorIcon {
         systemImage: String,
         showChevron: Bool = true,
         hasShadow: Bool = false,
-        accentColor: Color = Color("skyblue")
+        accentColor: Color = Color.mainAccent
     ) {
         self.title = title
         self.showChevron = showChevron
@@ -134,7 +134,7 @@ extension SelectorInputLabel where StartContent == EmptyView {
         _ title: String,
         showChevron: Bool = true,
         hasShadow: Bool = false,
-        accentColor: Color = Color("skyblue")
+        accentColor: Color = Color.mainAccent
     ) {
         self.title = title
         self.showChevron = showChevron

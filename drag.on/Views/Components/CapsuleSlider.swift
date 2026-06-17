@@ -11,6 +11,9 @@ struct CapsuleSlider: View {
     let secondaryTextColor: Color
     let cardBackground: Color
     let cardBorder: Color
+    
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -80,7 +83,7 @@ struct CapsuleSlider: View {
                 }
                 .padding(.horizontal, 14)
                 
-                // 3. Active Fill Level (Solid .skyblue color)
+                // 3. Active Fill Level 
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color(.mainSurfece).opacity(80))
                     .strokeBorder(cardBorder, lineWidth: LairConstants.Convert.inputBorderWidth)
@@ -113,7 +116,7 @@ struct CapsuleSlider: View {
                 
                 // 5. Tactile Floating Handle (Pure White, disappears with combined fade + height shrink animation)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.content100.opacity(0.8))
+                    .fill(mainAccent.opacity(0.8))
                     .frame(width: handleWidth, height: handleHeight)
                     .offset(x: max(0, min(width - handleWidth, width * CGFloat(value) - 10)))
                     .opacity(handleOpacity)

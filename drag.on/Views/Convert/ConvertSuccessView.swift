@@ -25,9 +25,10 @@ struct ConvertSuccessView: View {
         Color("content-200")
     }
 
-    private var accentColor: Color {
-        Color(red: 0.0, green: 0.55, blue: 1.0)
-    }
+    private var accentColor: Color { mainAccent }
+
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
 
     private var cardBackground: Color {
         Color("Secondary-surfece")
@@ -163,8 +164,8 @@ struct ConvertSuccessView: View {
                             Capsule().fill(
                                 LinearGradient(
                                     gradient: Gradient(colors: [
-                                        Color(.cyanDream),
-                                        Color(.skyblue),
+                                        secondaryAccent,
+                                        mainAccent,
                                     ]),
                                     startPoint: .bottom,
                                     endPoint: .top

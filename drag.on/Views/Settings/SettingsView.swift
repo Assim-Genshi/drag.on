@@ -84,7 +84,7 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let window = nsView.window else { return }
             
-            // Mask the entire window frame to perfectly match our 22pt corner radius.
+            // Mask the entire window frame to perfectly match 22pt corner radius.
             if let themeFrame = window.contentView?.superview {
                 themeFrame.wantsLayer = true
                 themeFrame.layer?.cornerRadius = 22
@@ -137,15 +137,20 @@ struct SettingsView: View {
     @AppStorage("customOutputDirectoryPath") private var customOutputDirectoryPath: String = ""
     @AppStorage("summonPosition") private var summonPosition: String = "Above"
     @AppStorage("summonDistance") private var summonDistance: Double = 40.0
+    @AppStorage("accentTheme") private var accentTheme: String = AccentTheme.hydro.rawValue
+
+    @AppAccent(.main) private var mainAccent
+    @AppAccent(.secondary) private var secondaryAccent
 
     @Environment(\.colorScheme) private var colorScheme
+    @Namespace private var swatchNamespace
 
     // MARK: - Theme Colors (matching ConvertView)
 
     private var primaryTextColor: Color { Color("content-100") }
     private var surfeceColor: Color { Color("main-surfece") }
     private var secondaryTextColor: Color { Color("content-200") }
-    private var accentColor: Color { Color("skyblue") }
+    private var accentColor: Color { mainAccent }
     private var secondarysurfeceColor: Color { Color("Secondary-surfece") }
     private var cardBorder: Color { Color("border-color") }
 
@@ -207,11 +212,12 @@ struct SettingsView: View {
         .frame(width: 540, height: 540)
         .background(
             ZStack {
-                Color.primary.opacity(0.05)
+                Color.mainAccent.opacity(0.6)
                 Rectangle().fill(.ultraThinMaterial)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .tint(mainAccent)
         .ignoresSafeArea(.all)
         .preferredColorScheme(colorSchemeForTheme)
         .windowAppearance(windowAppearance)
@@ -397,6 +403,38 @@ struct SettingsView: View {
                     themeCard(imageName: "dark mode", themeValue: "Dark")
                 }
             }
+
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Accent Color")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(primaryTextColor.opacity(0.85))
+
+                    Text("Choose your element")
+                        .font(.system(size: 9))
+                        .foregroundStyle(secondaryTextColor)
+                        .padding(.leading, 2)
+                }
+
+                HStack(spacing: 16) {
+                    Spacer()
+                    ForEach(AccentTheme.allCases) { theme in
+                        accentThemeButton(theme: theme)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(secondarysurfeceColor.opacity(0.4))
+                )
+                .topHighlightBorder(cornerRadius: 16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(cardBorder, lineWidth: 1)
+                )
+            }
+            .padding(.top, 4)
         }
         .padding(.horizontal, 24)
     }
@@ -499,12 +537,92 @@ struct SettingsView: View {
             .padding(2)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color("skyblue") : secondarysurfeceColor.opacity(0.6))
+                    .fill(isSelected ? mainAccent : secondarysurfeceColor.opacity(0.6))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(cardBorder, lineWidth: 1)
             )
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+    }
+
+    // MARK: - Accent Theme Button
+
+    private func accentThemeButton(theme: AccentTheme) -> some View {
+        let isSelected = accentTheme == theme.rawValue
+
+        return Button {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+                accentTheme = theme.rawValue
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    // Selection Ring and Background Highlight (Rotated Diamond)
+                    Color.clear
+                        .frame(width: 50, height: 50) // Spacer layout frame to avoid clipping
+                        .overlay(
+                            Group {
+                                if isSelected {
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .stroke(theme.mainColor, lineWidth: 1.5)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                                .fill(theme.mainColor.opacity(0.12))
+                                        )
+                                        .rotationEffect(.degrees(45))
+                                        .matchedGeometryEffect(id: "activeSwatchRing", in: swatchNamespace)
+                                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                                }
+                            }
+                        )
+
+                    // Core Swatch Shape (Rotated Diamond)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(theme.secondaryColor)
+                        .frame(width: 34, height: 34)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.6),
+                                            Color.clear,
+                                            Color.clear,
+                                            Color.clear
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.5
+                                )
+                        )
+                        .rotationEffect(.degrees(45))
+                        .shadow(color: theme.secondaryColor.opacity(isSelected ? 0.35 : 0.1), radius: isSelected ? 5 : 2, x: 0, y: 2)
+                        .animation(.spring(response: 0.38, dampingFraction: 0.72), value: isSelected)
+
+                    // Custom Element Icon (Upright)
+                    Image(theme.customIconName)
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .foregroundStyle(theme.mainColor)
+                        .scaleEffect(isSelected ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isSelected)
+                }
+                .scaleEffect(isSelected ? 1.04 : 1.0)
+                .animation(.spring(response: 0.38, dampingFraction: 0.72), value: isSelected)
+
+                Text(theme.rawValue)
+                    .font(.system(size: 9, weight: isSelected ? .bold : .medium, design: .rounded))
+                    .foregroundStyle(isSelected ? theme.mainColor : Color("content-200"))
+                    .scaleEffect(isSelected ? 1.05 : 1.0)
+                    .offset(y: isSelected ? 2 : 0)
+                    .animation(.spring(response: 0.38, dampingFraction: 0.72), value: isSelected)
+            }
         }
         .buttonStyle(.plain)
         .pointerCursor()
@@ -667,7 +785,7 @@ struct CustomShortcutRecorder: View {
     @State private var monitor: Any? = nil
     @State private var resignObserver: Any? = nil
     
-    private var accentColor: Color { Color("skyblue") }
+    @AppAccent(.main) private var accentColor
     
     var body: some View {
         Button(action: {
@@ -844,11 +962,13 @@ struct CustomShortcutRecorder: View {
 struct KeyCapView: View {
     let text: String
     var isActive: Bool = false
-    
+
+    @AppAccent(.main) private var mainAccent
+
     var body: some View {
         Text(text)
             .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(isActive ? Color("skyblue") : Color("content-100"))
+            .foregroundStyle(isActive ? mainAccent : Color("content-100"))
             .frame(minWidth: 32, minHeight: 32)
             .padding(.horizontal, 6)
             .background(
@@ -857,7 +977,7 @@ struct KeyCapView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isActive ? Color("skyblue").opacity(0.6) : Color("border-color"), lineWidth: 1.0)
+                    .stroke(isActive ? mainAccent.opacity(0.6) : Color("border-color"), lineWidth: 1.0)
             )
             .shadow(color: .black.opacity(isActive ? 0.08 : 0.04), radius: 1.5, x: 0, y: 1)
     }
