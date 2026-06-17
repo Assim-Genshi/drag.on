@@ -1,111 +1,169 @@
 import Cocoa
 import os
 
-/// Monitors mouse position at 60Hz during active file drags.
-/// Feeds positions to ShakeDetector to detect the "shake to summon" gesture.
+/// Event-driven drag monitor using a 3-state machine.
 ///
-/// Runs entirely on a background queue to avoid blocking the main thread
-/// with IPC calls to NSPasteboard.
+/// Replaces the previous 60Hz polling architecture with passive `NSEvent`
+/// global/local monitors. Zero CPU overhead when idle — only activates
+/// gesture tracking after confirming the drag pasteboard contains a
+/// supported payload (file URL, web URL, image, or URL-parseable string).
+///
+/// Feeds validated drag coordinates to ``ShakeDetector`` to detect the
+/// "shake to summon" gesture.
+@MainActor
 final class DragMonitor {
 
     let shakeDetector = ShakeDetector()
-    var onDragEnded: (@Sendable @MainActor () -> Void)?
+    var onDragEnded: (() -> Void)?
 
-    private var pollTimer: DispatchSourceTimer?
+    // MARK: - State Machine
+
+    /// The three phases of drag tracking.
+    ///
+    /// - `idle`: No active drag, or drag has no supported payload. Zero CPU work.
+    /// - `validating`: First `leftMouseDragged` received; checking the pasteboard.
+    /// - `tracking`: Pasteboard confirmed a supported payload. Feeding coordinates
+    ///   to ``ShakeDetector`` on every subsequent drag event.
+    private enum State {
+        case idle
+        case validating
+        case tracking
+    }
+
+    private var state: State = .idle
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
     private var lastChangeCount = -1
-    private var cachedIsFileDragActive = false
-    private var wasButtonDown = false
-
-    /// High-priority background queue for polling — keeps main thread free.
-    private let pollQueue = DispatchQueue(
-        label: "com.yokai.drag-on.drag-monitor",
-        qos: .userInteractive
-    )
 
     // MARK: - Lifecycle
 
     func startMonitoring() {
         stopMonitoring()
 
-        let timer = DispatchSource.makeTimerSource(queue: pollQueue)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(16)) // ~60Hz
-        timer.setEventHandler { [weak self] in
-            self?.pollMouseState()
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleEvent(event)
+            }
         }
-        timer.resume()
-        pollTimer = timer
 
-        Logger.dragMonitor.info("Started polling at 60Hz (background queue)")
+        localMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleEvent(event)
+            }
+            return event
+        }
+
+        Logger.dragMonitor.info("Event-driven drag monitoring started (3-state machine).")
     }
 
     func stopMonitoring() {
-        pollTimer?.cancel()
-        pollTimer = nil
+        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
+        if let m = localMonitor  { NSEvent.removeMonitor(m); localMonitor  = nil }
+        transitionToIdle()
+        Logger.dragMonitor.info("Drag monitoring stopped.")
+    }
+
+    // MARK: - Event Routing
+
+    private func handleEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDragged:
+            handleDrag()
+        case .leftMouseUp:
+            handleMouseUp()
+        default:
+            break
+        }
+    }
+
+    private func handleDrag() {
+        switch state {
+        case .idle:
+            // First drag event — transition to validating.
+            // We do NOT assume a payload exists yet.
+            state = .validating
+
+            if validatePasteboard() {
+                // Pasteboard contains a supported payload → enter tracking
+                state = .tracking
+                shakeDetector.recordMousePosition(NSEvent.mouseLocation)
+            } else {
+                // No supported payload (window resize, text select, etc.)
+                // Drop back to idle — ignore all subsequent drags until mouse-up.
+                state = .idle
+            }
+
+        case .validating:
+            // Resolved synchronously in the .idle branch above.
+            // Should not arrive here, but handle gracefully.
+            break
+
+        case .tracking:
+            // Confirmed payload drag — feed the coordinate to the gesture detector.
+            shakeDetector.recordMousePosition(NSEvent.mouseLocation)
+        }
+    }
+
+    private func handleMouseUp() {
+        let wasTracking = (state == .tracking)
+        transitionToIdle()
+        if wasTracking {
+            onDragEnded?()
+        }
+    }
+
+    private func transitionToIdle() {
+        state = .idle
         shakeDetector.reset()
-        Logger.dragMonitor.info("Stopped polling")
     }
 
-    // MARK: - Polling (runs on pollQueue)
+    // MARK: - Pasteboard Validation
 
-    private func pollMouseState() {
-        // CGEventSource.buttonState and NSEvent.mouseLocation are thread-safe
-        let isButtonDown = CGEventSource.buttonState(
-            .combinedSessionState,
-            button: .left
-        )
+    /// Returns `true` only if the drag pasteboard contains a supported payload type:
+    /// - File URL (local files from Finder, desktop, etc.)
+    /// - Web URL (http/https links from browsers)
+    /// - Image data (dragged images without a file URL)
+    /// - String parseable as a URL (e.g. Pinterest drags plain text)
+    ///
+    /// Called exactly once per drag session on the first `.leftMouseDragged` event.
+    /// If it returns `false`, the monitor stays `.idle` for the rest of the session.
+    private func validatePasteboard() -> Bool {
+        let pb = NSPasteboard(name: .drag)
+        let changeCount = pb.changeCount
 
-        let mouseLocation = NSEvent.mouseLocation
+        // Fast path: pasteboard hasn't changed since last check
+        guard changeCount != lastChangeCount else { return false }
+        lastChangeCount = changeCount
 
-        if isButtonDown {
-            if isFileDragActive() {
-                shakeDetector.recordMousePosition(mouseLocation)
-            }
-        } else if wasButtonDown {
-            shakeDetector.reset()
-            if let callback = onDragEnded {
-                Task { @MainActor in
-                    callback()
-                }
-            }
+        // 1. File URLs (highest priority — direct file drags from Finder, desktop, etc.)
+        if pb.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) {
+            return true
         }
 
-        wasButtonDown = isButtonDown
-    }
-
-    // MARK: - File Drag Detection (runs on pollQueue)
-
-    /// Check if the system drag pasteboard contains file URLs or web URLs.
-    /// Runs the actual pasteboard queries on the main thread since NSPasteboard
-    /// is not thread-safe, but mutates cached state on the background queue to
-    /// avoid Sendable/isolation warnings.
-    private func isFileDragActive() -> Bool {
-        // Retrieve changeCount from the main thread without capturing self
-        let changeCount = DispatchQueue.main.sync {
-            return NSPasteboard(name: .drag).changeCount
+        // 2. Web URLs (http/https links dragged from browsers)
+        if pb.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: false]) {
+            return true
         }
-        
-        if changeCount != lastChangeCount {
-            lastChangeCount = changeCount
-            
-            // Query pasteboard types on the main thread
-            cachedIsFileDragActive = DispatchQueue.main.sync {
-                let dragPasteboard = NSPasteboard(name: .drag)
-                let canReadFileURL = dragPasteboard.canReadObject(
-                    forClasses: [NSURL.self],
-                    options: [.urlReadingFileURLsOnly: true]
-                )
-                let canReadWebURL = dragPasteboard.canReadObject(
-                    forClasses: [NSURL.self],
-                    options: [.urlReadingFileURLsOnly: false]
-                )
-                return canReadFileURL || canReadWebURL
+
+        // 3. Image data (e.g. dragging an image directly from a web page)
+        if pb.canReadObject(forClasses: [NSImage.self], options: nil) {
+            return true
+        }
+
+        // 4. Strings that parse as URLs (Pinterest, some web apps)
+        if let strings = pb.readObjects(forClasses: [NSString.self], options: nil) as? [String] {
+            let hasURL = strings.contains { str in
+                guard let url = URL(string: str) else { return false }
+                return url.scheme == "http" || url.scheme == "https"
             }
+            if hasURL { return true }
         }
-        
-        return cachedIsFileDragActive
+
+        return false
     }
 
-    deinit {
-        stopMonitoring()
-    }
 }

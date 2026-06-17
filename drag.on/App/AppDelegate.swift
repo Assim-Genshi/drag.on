@@ -34,11 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
  
         dragMonitor.shakeDetector.onShakeDetected = { [weak self] location in
-            guard let self = self, let window = self.lairWindow else { return }
+            guard let self, let window = self.lairWindow else { return }
             guard !window.isVisible && !window.isConvertPanelVisible else { return }
             window.show(near: location, isShake: true)
         }
- 
+
         dragMonitor.onDragEnded = { [weak self] in
             self?.lairWindow?.handleDragEnded()
         }
