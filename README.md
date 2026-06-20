@@ -244,7 +244,7 @@ For images:
 
 ## Acknowledgements
 
-Drag.on wouldn't be possible without these open-source projects:
+Drag.on wouldn't be possible without these awesome open-source projects:
 
 ### [Keyboard Shortcuts](https://github.com/sindresorhus/KeyboardShortcuts)
 
@@ -262,6 +262,10 @@ WebP encoding and conversion support.
 
 Inspiration for the onboarding experience.
 
+### [Pika](https://github.com/superhighfives/pika)
+
+A huge inspiration for the setting window, thank u so much.
+
 ---
 
 ## License
@@ -272,5 +276,5 @@ Feel free to use, modify, and contribute.
 
 ---
 
-Made with love, snow, and a little dragon magic.
+Made with love, patience, and a little dragon magic. [BY ASSIM](https://assim-portfolio.vercel.app/)
 
