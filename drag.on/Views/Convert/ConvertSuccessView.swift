@@ -151,11 +151,11 @@ struct ConvertSuccessView: View {
                         store.addFilesAsync(urls: urls)
                         onDismiss()
                     }) {
-                        HStack(spacing: 5) {
+                        HStack(spacing: 8) {
                             Image(systemName: "plus.circle")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 13, weight: .bold))
                             Text("Add to Lair")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.system(size: 13, weight: .bold))
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -178,8 +178,8 @@ struct ConvertSuccessView: View {
                                     LinearGradient(
                                         gradient: Gradient(stops: [
                                             .init(color: Color.white.opacity(0.85), location: 0.0),
-                                            .init(color: Color(red: 0.1, green: 0.45, blue: 0.8, opacity: 0.45), location: 0.5),
-                                            .init(color: Color(red: 0.4, green: 0.75, blue: 0.95, opacity: 0.65), location: 1.0)
+                                            .init(color: mainAccent, location: 0.5),
+                                            .init(color: mainAccent.opacity(0.2), location: 1.0)
                                         ]),
                                         startPoint: .top,
                                         endPoint: .bottom
@@ -193,7 +193,7 @@ struct ConvertSuccessView: View {
                                 .blendMode(.screen)
                                 .allowsHitTesting(false)
                         )
-                        .shadow(color: Color(red: 0.306, green: 0.639, blue: 1.0).opacity(0.35), radius: 12, x: 0, y: 6)
+                        .shadow(color: mainAccent.opacity(0.35), radius: 12, x: 0, y: 6)
                         .scaleEffect(isHoveringAdd ? 1.03 : 1.0)
                     }
                     .buttonStyle(.plain)

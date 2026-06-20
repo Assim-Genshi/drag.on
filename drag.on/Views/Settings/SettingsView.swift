@@ -228,22 +228,17 @@ struct SettingsView: View {
 
     private var headerBanner: some View {
         ZStack {
-            // Background fill + optional sky image
+            // Background fill + Metal shader animation
             ZStack {
                 surfeceColor
 
-                    Image("sky_clouds_bg")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 140)
-                        .overlay(Color.black.opacity(0.2))
-                        
+                ShaderBackgroundView(height: 140)
             }
+
 
             // Centered App Icon + App Name and Version info
             HStack(spacing: 16) {
-                Image("appIcon")
+                Image("app-icon")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 84, height: 84)
@@ -255,7 +250,7 @@ struct SettingsView: View {
 
                     Text("Version 1.0 beta")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.black.opacity(0.4))
+                        .foregroundStyle(.white)
                         .opacity(0.6)
                 }
             }
@@ -424,15 +419,6 @@ struct SettingsView: View {
                     Spacer()
                 }
                 .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(secondarysurfeceColor.opacity(0.4))
-                )
-                .topHighlightBorder(cornerRadius: 16)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(cardBorder, lineWidth: 1)
-                )
             }
             .padding(.top, 4)
         }

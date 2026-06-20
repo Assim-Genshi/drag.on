@@ -115,21 +115,9 @@ struct ConvertView: View {
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius)
                     .fill((surfeceColor).opacity(60))
-                if colorScheme != .dark {
-                    Image("sky_clouds_bg")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: LairConstants.Convert.width, height: 160)
-                        .clipped()
-                        .mask(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.black, .black, .black.opacity(0.8), .clear]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .opacity(0.85)
-                }
+                ShaderBackgroundView(height: 160, fadeToBottom: true)
+                    .frame(width: LairConstants.Convert.width)
+                    .opacity(0.85)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: LairConstants.Convert.cornerRadius))

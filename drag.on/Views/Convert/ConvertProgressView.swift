@@ -10,6 +10,8 @@ import SwiftUI
 struct ConvertProgressView: View {
     let progress: ConversionProgress
     let converter: ImageConverter
+    
+    @State private var isHoveringCancel = false
 
     private var primaryTextColor: Color {
         Color("content-100")
@@ -72,14 +74,24 @@ struct ConvertProgressView: View {
                 converter.cancelConversion()
             }) {
                 Text("Cancel")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(secondaryTextColor)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(cardBackground))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(primaryTextColor.opacity(0.9))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        Capsule().fill(Color.secondarySurfece)
+                    )
+                    .overlay(
+                        Capsule().stroke(Color.border.opacity(0.8), lineWidth: 1.0)
+                    )
+                    .scaleEffect(isHoveringCancel ? 1.03 : 1.0)
             }
             .buttonStyle(.plain)
+            .onHover { h in
+                withAnimation(.easeOut(duration: 0.15)) { isHoveringCancel = h }
+            }
             .pointerCursor()
+            .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
     }
